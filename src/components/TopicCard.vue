@@ -1,44 +1,22 @@
 <script setup>
 import { computed } from 'vue';
+// 1. Hier importeren we onze nieuwe centrale definities
+import { PHASE_COLORS, PHASE_LABELS, STATUS_COLORS } from '../constants/types.js';
 
 const props = defineProps({
-  event: Object,      // Het agenda-item (met datum, titel, etc.)
-  isAdmin: Boolean,   // Is de gebruiker ingelogd?
-  isFocused: Boolean, // Heeft dit onderwerp focus?
-  isCompact: Boolean  // Moeten we de "Stippen" weergave tonen?
+  event: Object,      
+  isAdmin: Boolean,   
+  isFocused: Boolean, 
+  isCompact: Boolean  
 });
 
 const emit = defineEmits(['edit', 'delete', 'toggle-focus', 'open-details']);
 
-// Kleuren per fase (Gremium)
-const colors = { 
-  'PFO':'var(--c-pfo)', 
-  'DBBesluit':'var(--c-db-besluit)', 
-  'DBInformeel': 'var(--c-db-informeel)',
-  'Delta':'var(--c-delta)',
-  'ABBesluit':'var(--c-ab-besluit)'
-};
-
-// Labels voor weergave fases
-const labels = { 
-  'PFO':'PFO', 
-  'DBBesluit':'DB Besluit', 
-  'DBInformeel': 'Informeel DB', 
-  'Delta':'Delta',
-  'ABBesluit':'AB Besluit'
-};
-
-// Kleuren voor de Status badges
-const statusColors = {
-    'Concept': '#95a5a6',     // Grijs
-    'Ingediend': '#f39c12',   // Oranje
-    'Geagendeerd': '#3498db', // Blauw
-    'Afgerond': '#27ae60'     // Groen
-};
+// 2. Oude definities van 'colors', 'labels' en 'statusColors' zijn hier verwijderd!
 
 // Kleur bepalen voor rand
-const borderColor = computed(() => colors[props.event.type] || '#ccc');
-const phaseLabel = computed(() => labels[props.event.type] || props.event.type);
+const borderColor = computed(() => PHASE_COLORS[props.event.type] || PHASE_COLORS.default);
+const phaseLabel = computed(() => PHASE_LABELS[props.event.type] || props.event.type);
 
 // Status per fase ophalen
 const currentStatus = computed(() => {
