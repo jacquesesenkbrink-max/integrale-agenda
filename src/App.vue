@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, computed, watch, onMounted, nextTick } from 'vue';
+  import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
   
   // DATA IMPORTS
   import { items as defaultItems } from './data/items.js';
@@ -16,11 +16,8 @@
   import ReportView from './components/ReportView.vue';
   import AgendaView from './components/AgendaView.vue';
   import DateManager from './components/DateManager.vue';
-  import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 
   // --- CONFIGURATIE ---
-  // We gebruiken 'v2' om te forceren dat de nieuwe items.js wordt geladen
-  // en de oude cache (zonder P&C items) wordt genegeerd.
   const STORAGE_KEY_DATA = 'mijn-agenda-data-v2';
   const STORAGE_KEY_DATES = 'mijn-agenda-dates-v2';
 
@@ -29,7 +26,7 @@
   const viewMode = ref('grid'); 
   const filterType = ref('fase');
   const filterWaarde = ref('all');
-  const filterPH = ref(''); // State voor gekozen PH
+  const filterPH = ref(''); 
   const startJaar = ref(0);
   
   const activeFocusId = ref(null); 
@@ -61,45 +58,37 @@
   const strokeColor = ref('#2c3e50');
   const timelineRef = ref(null);
 
-  // --- INITIALISATIE ---
-  // Variabele om de timer bij te houden
+  // --- PERFORMANCE OPTIMIZATION (DEBOUNCE) ---
   let resizeTimeout = null;
 
-  // De slimme resize functie
   function handleResize() {
-   // Als er nog een timer liep: annuleer die
-   clearTimeout(resizeTimeout);
-  
-    // Start een nieuwe timer. Pas na 200ms stilte wordt getekend.
+    clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
-     drawConnections();
-  }, 200);
-}
-
-onMounted(() => {
-  loadData();
-
-  if (sessionStorage.getItem('is-admin') === 'true') {
-      isAdmin.value = true;
+      drawConnections();
+    }, 200);
   }
-  
-  // OUDE REGEL: window.addEventListener('resize', drawConnections);
-  // NIEUWE REGEL:
-  window.addEventListener('resize', handleResize);
-});
 
-// Zorg dat we de listener netjes opruimen als het component sluit (best practice)
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
-});
+  // --- INITIALISATIE ---
+  onMounted(() => {
+    loadData();
+
+    if (sessionStorage.getItem('is-admin') === 'true') {
+        isAdmin.value = true;
+    }
+    // Gebruik de geoptimaliseerde resize functie
+    window.addEventListener('resize', handleResize);
+  });
+
+  onUnmounted(() => {
+    // Netjes opruimen bij afsluiten
+    window.removeEventListener('resize', handleResize);
+  });
 
   function loadData() {
-    // Probeer data uit local storage te halen (v2)
     const opgeslagen = localStorage.getItem(STORAGE_KEY_DATA);
     if (opgeslagen) {
       agendaPunten.value = JSON.parse(opgeslagen);
     } else {
-      // Als er niets staat (of we zitten op een nieuwe versie), laad de import
       console.log("Geen opgeslagen data gevonden, loading defaults...");
       agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
     }
@@ -112,7 +101,6 @@ onUnmounted(() => {
     }
   }
 
-  // Functie om handmatig data te resetten naar items.js (nuttig tijdens testen)
   function resetToDefaults() {
     if(confirm("Weet je zeker dat je alle data wilt resetten naar de standaard items.js? Je kwijt gemaakte wijzigingen in de browser.")) {
         agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
@@ -134,7 +122,6 @@ onUnmounted(() => {
       if(activeFocusId.value) nextTick(() => drawConnections());
   });
 
-  // Watcher: Als de gefilterde lijst verandert (bv door PH keuze), herteken lijnen
   watch(filterPH, () => {
       nextTick(() => {
           if (activeFocusId.value) drawConnections();
@@ -194,10 +181,7 @@ onUnmounted(() => {
     
     if (filterWaarde.value !== 'all') {
         if (filterType.value === 'fase') {
-            
-            // LOGICA: Als PFO actief is EN er is een PH gekozen
             if (filterWaarde.value === 'PFO' && filterPH.value) {
-                // Toon alle fases van items die bij deze PH horen
                 list = list.filter(e => {
                     const item = e.originalItem;
                     const phList = item.ph ? item.ph.split('/').map(n => n.trim()) : [];
@@ -207,13 +191,10 @@ onUnmounted(() => {
                 });
             } 
             else {
-                // Normaal gedrag: Alleen de specifieke kolom tonen
                 list = list.filter(e => e.type === filterWaarde.value);
             }
         }
         else {
-            // Label filter (Hier wordt P&C gefilterd)
-            // We zorgen dat we ook items pakken die P&C heten
             list = list.filter(e => e.strategicLabel === filterWaarde.value);
         }
     }
@@ -270,7 +251,6 @@ onUnmounted(() => {
     }
   }
 
-  // Navigeer vanuit tabel naar grid kaartje
   function navigateToTopic(topicId) {
       viewMode.value = 'grid';
       activeFocusId.value = topicId;
