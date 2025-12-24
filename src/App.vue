@@ -16,6 +16,7 @@
   import ReportView from './components/ReportView.vue';
   import AgendaView from './components/AgendaView.vue';
   import DateManager from './components/DateManager.vue';
+  import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 
   // --- CONFIGURATIE ---
   // We gebruiken 'v2' om te forceren dat de nieuwe items.js wordt geladen
@@ -61,14 +62,36 @@
   const timelineRef = ref(null);
 
   // --- INITIALISATIE ---
-  onMounted(() => {
-    loadData();
+  // Variabele om de timer bij te houden
+  let resizeTimeout = null;
 
-    if (sessionStorage.getItem('is-admin') === 'true') {
-        isAdmin.value = true;
-    }
-    window.addEventListener('resize', drawConnections);
-  });
+  // De slimme resize functie
+  function handleResize() {
+   // Als er nog een timer liep: annuleer die
+   clearTimeout(resizeTimeout);
+  
+    // Start een nieuwe timer. Pas na 200ms stilte wordt getekend.
+    resizeTimeout = setTimeout(() => {
+     drawConnections();
+  }, 200);
+}
+
+onMounted(() => {
+  loadData();
+
+  if (sessionStorage.getItem('is-admin') === 'true') {
+      isAdmin.value = true;
+  }
+  
+  // OUDE REGEL: window.addEventListener('resize', drawConnections);
+  // NIEUWE REGEL:
+  window.addEventListener('resize', handleResize);
+});
+
+// Zorg dat we de listener netjes opruimen als het component sluit (best practice)
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
 
   function loadData() {
     // Probeer data uit local storage te halen (v2)
