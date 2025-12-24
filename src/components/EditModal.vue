@@ -1,5 +1,7 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
+// NIEUW: Importeer de centrale settings
+import { STRATEGIC_LABELS, STATUS_OPTIONS, PHASES } from '../config/appSettings.js';
 
 const props = defineProps({
   show: Boolean,
@@ -20,8 +22,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
-const listHead = []; 
-const listLabels = ['Beleid', 'Uitvoering', 'Kaders', 'Organisatiegesteldheid', 'Externe ontwikkelingen', 'Evaluatie', 'P&C'];
+const listHead = []; // Deze houden we nog even leeg/lokaal tot er data voor is
 
 const defaultForm = {
   id: null,
@@ -34,18 +35,22 @@ const defaultForm = {
   strategicLabel: '',
   toelichting: '',  
   comments: '',     
-  schedule: { PFO: '', DBBesluit: '', DBInformeel: '', Delta: '', ABBesluit: '' },
-  scheduleStatus: { PFO: 'Concept', DBBesluit: 'Concept', DBInformeel: 'Concept', Delta: 'Concept', ABBesluit: 'Concept' }
+  schedule: {},       // Wordt dynamisch gevuld
+  scheduleStatus: {}  // Wordt dynamisch gevuld
 }
 
+// Initialiseer schedule objecten op basis van PHASES
+PHASES.forEach(phase => {
+    defaultForm.schedule[phase] = '';
+    defaultForm.scheduleStatus[phase] = 'Concept';
+});
+
 const formData = ref({ ...defaultForm })
-const errors = ref({}); // NIEUW: Houdt foutmeldingen bij
+const errors = ref({}); 
 
 const uiState = ref({
   selPH: '', selColleaguePH: '', selDir: '', selHead: '', selLabel: ''
 });
-
-const statusOptions = ['Concept', 'Ingediend', 'Geagendeerd', 'Afgerond'];
 
 function setUiState(field, value, list) {
     if (!value) uiState.value[field] = '';
@@ -54,7 +59,7 @@ function setUiState(field, value, list) {
 }
 
 watch(() => props.item, (newItem) => {
-  errors.value = {}; // Reset fouten bij openen
+  errors.value = {}; 
   if (newItem) {
     const copy = JSON.parse(JSON.stringify(newItem))
     if (!copy.schedule) copy.schedule = { ...defaultForm.schedule }
@@ -67,7 +72,7 @@ watch(() => props.item, (newItem) => {
     setUiState('selColleaguePH', copy.colleaguePH, props.portefeuillehouders);
     setUiState('selDir', copy.dir, props.directeuren);
     setUiState('selHead', copy.headOfDept, listHead);
-    setUiState('selLabel', copy.strategicLabel, listLabels);
+    setUiState('selLabel', copy.strategicLabel, STRATEGIC_LABELS);
   } else {
     formData.value = JSON.parse(JSON.stringify(defaultForm))
     formData.value.id = Date.now()
@@ -83,21 +88,25 @@ function handleSelectChange(uiField, dataField, value, list) {
     }
 }
 
-// NIEUW: Validatie logica
 const validate = () => {
     errors.value = {};
     let isValid = true;
-    
     if (!formData.value.title || formData.value.title.trim() === '') {
         errors.value.title = 'Een titel is verplicht.';
         isValid = false;
     }
-    
     return isValid;
 }
 
 const save = () => {
-  if (!validate()) return; // Stop als validatie faalt
+  if (!validate()) return; 
+
+  // --- TRIM FIX: Voorkomt 'Anders' mismatch door spaties ---
+  ['ph', 'colleaguePH', 'dir', 'headOfDept', 'strategicLabel', 'on', 'title'].forEach(field => {
+      if (formData.value[field] && typeof formData.value[field] === 'string') {
+          formData.value[field] = formData.value[field].trim();
+      }
+  });
 
   if(formData.value.toelichting) formData.value.comments = formData.value.toelichting;
   emit('save', formData.value)
@@ -120,13 +129,7 @@ const cancel = () => {
         
         <div class="form-group">
           <label>Onderwerp Titel <span class="required">*</span></label>
-          <input 
-            type="text" 
-            v-model="formData.title" 
-            placeholder="Bijv. Jaarstukken 2024" 
-            autofocus
-            :class="{ 'has-error': errors.title }"
-          >
+          <input type="text" v-model="formData.title" placeholder="Bijv. Jaarstukken 2024" autofocus :class="{ 'has-error': errors.title }">
           <span v-if="errors.title" class="error-msg">{{ errors.title }}</span>
         </div>
 
@@ -182,9 +185,9 @@ const cancel = () => {
 
             <div class="form-group">
                 <label>Strategisch Label</label>
-                <select v-model="uiState.selLabel" @change="handleSelectChange('selLabel', 'strategicLabel', uiState.selLabel, listLabels)">
+                <select v-model="uiState.selLabel" @change="handleSelectChange('selLabel', 'strategicLabel', uiState.selLabel, STRATEGIC_LABELS)">
                     <option value="">-- Kies Label --</option>
-                    <option v-for="opt in listLabels" :key="opt" :value="opt">{{ opt }}</option>
+                    <option v-for="opt in STRATEGIC_LABELS" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
                 <input v-if="uiState.selLabel === 'Anders'" type="text" v-model="formData.strategicLabel" placeholder="Vul label in..." class="custom-input">
@@ -202,71 +205,20 @@ const cancel = () => {
         <p class="hint-text">Selecteer per fase de datum én de status.</p>
         
         <div class="date-grid">
-            <div class="form-group schedule-block">
-                <label>PFO</label>
+            <div v-for="phase in PHASES" :key="phase" class="form-group schedule-block">
+                <label>{{ phase }}</label>
                 <div class="input-row">
-                    <select v-model="formData.schedule.PFO" class="date-select">
+                    <select v-model="formData.schedule[phase]" class="date-select">
                         <option value="">-- Datum --</option>
-                        <option v-for="date in (availableDates.PFO || [])" :key="date" :value="date">{{ date }}</option>
+                        <option v-for="date in (availableDates[phase] || [])" :key="date" :value="date">{{ date }}</option>
                     </select>
-                    <select v-model="formData.scheduleStatus.PFO" class="status-select" :class="formData.scheduleStatus.PFO">
-                        <option v-for="s in statusOptions" :key="s">{{ s }}</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="form-group schedule-block">
-                <label>DB Besluit</label>
-                <div class="input-row">
-                    <select v-model="formData.schedule.DBBesluit" class="date-select">
-                        <option value="">-- Datum --</option>
-                        <option v-for="date in (availableDates.DBBesluit || [])" :key="date" :value="date">{{ date }}</option>
-                    </select>
-                    <select v-model="formData.scheduleStatus.DBBesluit" class="status-select" :class="formData.scheduleStatus.DBBesluit">
-                        <option v-for="s in statusOptions" :key="s">{{ s }}</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="form-group schedule-block">
-                <label>Informeel DB</label>
-                <div class="input-row">
-                    <select v-model="formData.schedule.DBInformeel" class="date-select">
-                        <option value="">-- Datum --</option>
-                        <option v-for="date in (availableDates.DBInformeel || [])" :key="date" :value="date">{{ date }}</option>
-                    </select>
-                    <select v-model="formData.scheduleStatus.DBInformeel" class="status-select" :class="formData.scheduleStatus.DBInformeel">
-                        <option v-for="s in statusOptions" :key="s">{{ s }}</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-group schedule-block">
-                <label>Delta</label>
-                <div class="input-row">
-                    <select v-model="formData.schedule.Delta" class="date-select">
-                        <option value="">-- Datum --</option>
-                        <option v-for="date in (availableDates.Delta || [])" :key="date" :value="date">{{ date }}</option>
-                    </select>
-                    <select v-model="formData.scheduleStatus.Delta" class="status-select" :class="formData.scheduleStatus.Delta">
-                        <option v-for="s in statusOptions" :key="s">{{ s }}</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="form-group schedule-block">
-                <label>AB Besluit</label>
-                <div class="input-row">
-                    <select v-model="formData.schedule.ABBesluit" class="date-select">
-                        <option value="">-- Datum --</option>
-                        <option v-for="date in (availableDates.ABBesluit || [])" :key="date" :value="date">{{ date }}</option>
-                    </select>
-                    <select v-model="formData.scheduleStatus.ABBesluit" class="status-select" :class="formData.scheduleStatus.ABBesluit">
-                        <option v-for="s in statusOptions" :key="s">{{ s }}</option>
+                    <select v-model="formData.scheduleStatus[phase]" class="status-select" :class="formData.scheduleStatus[phase]">
+                        <option v-for="s in STATUS_OPTIONS" :key="s">{{ s }}</option>
                     </select>
                 </div>
             </div>
         </div>
+
       </div>
 
       <div class="modal-footer">
@@ -278,15 +230,8 @@ const cancel = () => {
 </template>
 
 <style scoped>
-.modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;
-}
-.modal-content {
-  background: white; width: 800px; max-width: 95%; max-height: 90vh;
-  overflow-y: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  display: flex; flex-direction: column;
-}
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; width: 800px; max-width: 95%; max-height: 90vh; overflow-y: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
 .modal-header { padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; }
 .modal-header h2 { margin: 0; font-size: 1.25rem; color: #2c3e50; }
 .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
@@ -297,10 +242,7 @@ const cancel = () => {
 
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; color: #34495e; }
-.form-group input, .form-group textarea, .form-group select {
-  width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.95rem; font-family: inherit;
-}
-/* Foutmelding stijlen */
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.95rem; font-family: inherit; }
 .has-error { border-color: #e74c3c !important; background-color: #fdf2f2; }
 .error-msg { color: #e74c3c; font-size: 0.85rem; margin-top: 4px; display: block; }
 .required { color: #e74c3c; }

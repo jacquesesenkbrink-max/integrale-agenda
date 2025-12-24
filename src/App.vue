@@ -6,6 +6,9 @@
   import { meetingDates as defaultDates } from './data/meetingDates.js'; 
   import { parseDate, getMonthName } from './utils/dateHelpers.js';
   
+  // CONFIG IMPORT
+  import { PHASES, DEFAULT_COLOR } from './config/appSettings.js';
+
   // COMPONENT IMPORTS
   import TopicCard from './components/TopicCard.vue';
   import FilterBar from './components/FilterBar.vue';
@@ -54,56 +57,40 @@
 
   // SVG Refs
   const connectionsPath = ref('');
-  const strokeColor = ref('#2c3e50');
+  const strokeColor = ref(DEFAULT_COLOR);
   const timelineRef = ref(null);
 
-  // NIEUW: Toast Melding State
   const toast = ref({ visible: false, message: '', type: 'success' });
   let toastTimeout = null;
 
-  // --- PERFORMANCE OPTIMIZATION (DEBOUNCE) ---
+  // --- PERFORMANCE OPTIMIZATION ---
   let resizeTimeout = null;
-
   function handleResize() {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      drawConnections();
-    }, 200);
+    resizeTimeout = setTimeout(() => { drawConnections(); }, 200);
   }
 
   // --- INITIALISATIE ---
   onMounted(() => {
     loadData();
-
-    if (sessionStorage.getItem('is-admin') === 'true') {
-        isAdmin.value = true;
-    }
+    if (sessionStorage.getItem('is-admin') === 'true') { isAdmin.value = true; }
     window.addEventListener('resize', handleResize);
   });
 
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
-  });
+  onUnmounted(() => { window.removeEventListener('resize', handleResize); });
 
   function loadData() {
     const opgeslagen = localStorage.getItem(STORAGE_KEY_DATA);
-    if (opgeslagen) {
-      agendaPunten.value = JSON.parse(opgeslagen);
-    } else {
-      console.log("Geen opgeslagen data gevonden, loading defaults...");
-      agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
-    }
+    if (opgeslagen) { agendaPunten.value = JSON.parse(opgeslagen); } 
+    else { agendaPunten.value = JSON.parse(JSON.stringify(defaultItems)); }
 
     const opgeslagenDatums = localStorage.getItem(STORAGE_KEY_DATES);
-    if (opgeslagenDatums) {
-        activeDates.value = JSON.parse(opgeslagenDatums);
-    } else {
-        activeDates.value = JSON.parse(JSON.stringify(defaultDates));
-    }
+    if (opgeslagenDatums) { activeDates.value = JSON.parse(opgeslagenDatums); } 
+    else { activeDates.value = JSON.parse(JSON.stringify(defaultDates)); }
   }
 
   function resetToDefaults() {
-    if(confirm("Weet je zeker dat je alle data wilt resetten naar de standaard items.js? Je kwijt gemaakte wijzigingen in de browser.")) {
+    if(confirm("Weet je zeker dat je alle data wilt resetten naar de standaard items.js?")) {
         agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
         activeDates.value = JSON.parse(JSON.stringify(defaultDates));
         showToast("Data succesvol gereset!", "success");
@@ -115,18 +102,8 @@
     if(activeFocusId.value) nextTick(() => drawConnections());
   }, { deep: true });
 
-  watch(viewMode, () => {
-    if(activeFocusId.value) nextTick(() => drawConnections());
-  });
-
-  watch(showOnlyFocus, () => {
-      if(activeFocusId.value) nextTick(() => drawConnections());
-  });
-
-  watch(filterPH, () => {
-      nextTick(() => {
-          if (activeFocusId.value) drawConnections();
-      });
+  watch([viewMode, showOnlyFocus, filterPH], () => {
+    nextTick(() => { if (activeFocusId.value) drawConnections(); });
   });
 
   function saveDates() {
@@ -134,13 +111,10 @@
     showToast("Vergaderdata opgeslagen!");
   }
 
-  // NIEUW: Toon feedback melding
   function showToast(message, type = 'success') {
     toast.value = { visible: true, message, type };
     if (toastTimeout) clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => {
-        toast.value.visible = false;
-    }, 3000); // Verdwijnt na 3 seconden
+    toastTimeout = setTimeout(() => { toast.value.visible = false; }, 3000);
   }
 
   // --- LOGICA & TRANSFORMATIE ---
@@ -173,19 +147,14 @@
   const uniekePortefeuillehouders = computed(() => {
     const phSet = new Set();
     agendaPunten.value.forEach(item => {
-        if (item.ph) {
-            const parts = item.ph.split('/');
-            parts.forEach(p => phSet.add(p.trim()));
-        }
+        if (item.ph) item.ph.split('/').forEach(p => phSet.add(p.trim()));
     });
     return Array.from(phSet).sort();
   });
 
   const uniekeDirecteuren = computed(() => {
     const dirSet = new Set();
-    agendaPunten.value.forEach(item => {
-        if (item.dir) dirSet.add(item.dir.trim());
-    });
+    agendaPunten.value.forEach(item => { if (item.dir) dirSet.add(item.dir.trim()); });
     return Array.from(dirSet).sort();
   });
 
@@ -204,9 +173,7 @@
                 list = list.filter(e => {
                     const item = e.originalItem;
                     const phList = item.ph ? item.ph.split('/').map(n => n.trim()) : [];
-                    const matchesPH = phList.includes(filterPH.value);
-                    const hasPFO = !!item.schedule.PFO; 
-                    return matchesPH && hasPFO;
+                    return phList.includes(filterPH.value) && !!item.schedule.PFO;
                 });
             } 
             else {
@@ -248,9 +215,7 @@
 
   function handleAdminClick() {
     if (isAdmin.value) {
-        isAdmin.value = false;
-        sessionStorage.removeItem('is-admin');
-        showToast("Uitgelogd", "success");
+        isAdmin.value = false; sessionStorage.removeItem('is-admin'); showToast("Uitgelogd", "success");
     } else {
         wachtwoordInput.value = ''; isLoginOpen.value = true;
     }
@@ -278,9 +243,9 @@
       showOnlyFocus.value = false;
 
       nextTick(() => {
-          const preferredOrder = ['PFO', 'DBBesluit', 'DBInformeel', 'Delta', 'ABBesluit'];
+          // Gebruik nu de centrale PHASES config!
           let targetEl = null;
-          for (const type of preferredOrder) {
+          for (const type of PHASES) {
               const id = `card-${topicId}-${type}`;
               const el = document.getElementById(id);
               if (el) { targetEl = el; break; }
@@ -293,9 +258,7 @@
   }
 
   function clearFocus() { 
-      activeFocusId.value = null; 
-      connectionsPath.value = ''; 
-      showOnlyFocus.value = false;
+      activeFocusId.value = null; connectionsPath.value = ''; showOnlyFocus.value = false;
   }
 
   function openDetails(item) { geselecteerdItem.value = item; isDetailOpen.value = true; }
@@ -303,8 +266,7 @@
   function openEdit(item) { editItem.value = item; isEditOpen.value = true; }
   
   function updateHoofdFilter(p) { 
-      filterType.value = p.type; 
-      filterWaarde.value = p.value; 
+      filterType.value = p.type; filterWaarde.value = p.value; 
       if (p.value !== 'PFO') filterPH.value = '';
       clearFocus(); 
   }
@@ -319,21 +281,21 @@
       else { if(!updatedItem.id) updatedItem.id = Date.now(); agendaPunten.value.push(updatedItem); }
       
       isEditOpen.value = false;
-      showToast("Wijzigingen succesvol opgeslagen!"); // Feedback
+      showToast("Wijzigingen succesvol opgeslagen!"); 
   }
 
   function deleteItem(item) {
       if(confirm(`Verwijderen: "${item.title}"?`)) { 
           addToHistory(); 
           agendaPunten.value = agendaPunten.value.filter(i => i.id !== item.id); 
-          showToast("Item verwijderd", "error"); // Feedback (Rood)
+          showToast("Item verwijderd", "error"); 
       }
   }
 
   function addToHistory() { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); futureStack.value = []; }
   function undo() { if (historyStack.value.length) { futureStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = historyStack.value.pop(); showToast("Ongedaan gemaakt"); } }
   function redo() { if (futureStack.value.length) { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = futureStack.value.pop(); showToast("Opnieuw uitgevoerd"); } }
-  function handleFileUpload(e) { /* ...bestaande code... */ }
+  function handleFileUpload(e) { /* ... */ }
 
   function drawConnections() {
     if (!activeFocusId.value || !timelineRef.value) return;
@@ -345,7 +307,7 @@
 
     const style = window.getComputedStyle(cards[0]);
     strokeColor.value = viewMode.value === 'dots' ? style.backgroundColor : style.borderTopColor;
-    if (!strokeColor.value || strokeColor.value === 'rgba(0, 0, 0, 0)') strokeColor.value = '#2c3e50';
+    if (!strokeColor.value || strokeColor.value === 'rgba(0, 0, 0, 0)') strokeColor.value = DEFAULT_COLOR;
 
     const containerRect = timelineRef.value.getBoundingClientRect();
     let pathD = '';
@@ -353,7 +315,6 @@
     for (let i = 0; i < cards.length - 1; i++) {
         const rectA = cards[i].getBoundingClientRect();
         const rectB = cards[i+1].getBoundingClientRect();
-        
         const x1 = rectA.left + (rectA.width / 2) - containerRect.left;
         const y1 = rectA.top + (rectA.height / 2) - containerRect.top;
         const x2 = rectB.left + (rectB.width / 2) - containerRect.left;
@@ -556,28 +517,9 @@ header.collapsed { max-height: 0; padding: 0; opacity: 0; pointer-events: none; 
 
 .container { max-width: 1400px; margin: 0 auto; padding: 20px; position: relative; min-height: 80vh; }
 
-.controls-bar {
-    text-align: center;
-    padding: 10px;
-    background: #f4f7f6;
-    border-bottom: 1px solid #ddd;
-}
-.toggle-filters-btn {
-    background: white;
-    border: 1px solid #ccc;
-    padding: 6px 15px;
-    border-radius: 20px;
-    color: #555;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 600;
-}
-.toggle-filters-btn:hover {
-    background: #eef2f5;
-    color: #075895;
-    border-color: #075895;
-}
+.controls-bar { text-align: center; padding: 10px; background: #f4f7f6; border-bottom: 1px solid #ddd; }
+.toggle-filters-btn { background: white; border: 1px solid #ccc; padding: 6px 15px; border-radius: 20px; color: #555; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; font-weight: 600; }
+.toggle-filters-btn:hover { background: #eef2f5; color: #075895; border-color: #075895; }
 
 #connections-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; } 
 .connection-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 10; animation: dash 30s linear infinite; opacity: 0.8; }
@@ -588,22 +530,12 @@ header.collapsed { max-height: 0; padding: 0; opacity: 0; pointer-events: none; 
 .month-header::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #ccc; z-index: -1; }
 .month-badge { background-color: #fff; color: #2c3e50; border: 2px solid #2c3e50; padding: 5px 20px; border-radius: 30px; font-weight: bold; }
 .grid-layout { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-@media (min-width: 1100px) { 
-    .grid-layout { 
-        grid-template-columns: repeat(5, 1fr); 
-        align-items: start; 
-    } 
-}
+@media (min-width: 1100px) { .grid-layout { grid-template-columns: repeat(5, 1fr); align-items: start; } }
 
 main.has-focus .month-block { z-index: 10; } 
 main.has-focus .card-wrapper { opacity: 0.2; filter: grayscale(100%); transition: opacity 0.3s; }
 
-.floating-controls {
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 15px; z-index: 200; animation: popIn 0.3s;
-    background: white; padding: 5px; border-radius: 40px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #ddd;
-}
+.floating-controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; z-index: 200; animation: popIn 0.3s; background: white; padding: 5px; border-radius: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #ddd; }
 .control-btn { padding: 10px 20px; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; white-space: nowrap; }
 .reset-btn { background: #e74c3c; color: white; }
 .reset-btn:hover { background: #c0392b; }
@@ -613,31 +545,7 @@ main.has-focus .card-wrapper { opacity: 0.2; filter: grayscale(100%); transition
 
 @keyframes popIn { from { transform: translate(-50%, 50px); } to { transform: translate(-50%, 0); } }
 
-.admin-floating-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
-    background: #2c3e50;
-    color: white;
-    border: 2px solid white;
-    padding: 10px 20px;
-    border-radius: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.admin-floating-btn:hover {
-    transform: scale(1.05) translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-    background: #34495e;
-}
-.admin-floating-btn.active {
-    background: #e74c3c; 
-    border-color: #c0392b;
-}
+.admin-floating-btn { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: #2c3e50; color: white; border: 2px solid white; padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; font-weight: bold; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
+.admin-floating-btn:hover { transform: scale(1.05) translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); background: #34495e; }
+.admin-floating-btn.active { background: #e74c3c; border-color: #c0392b; }
 </style>
