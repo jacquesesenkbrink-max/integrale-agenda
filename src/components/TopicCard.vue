@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-// 1. Hier importeren we onze nieuwe centrale definities
+// 1. Importeer de constanten
 import { PHASE_COLORS, PHASE_LABELS, STATUS_COLORS } from '../constants/types.js';
 
 const props = defineProps({
@@ -12,10 +12,15 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'delete', 'toggle-focus', 'open-details']);
 
-// 2. Oude definities van 'colors', 'labels' en 'statusColors' zijn hier verwijderd!
+// 2. BELANGRIJK: Maak de 'statusColors' beschikbaar onder de oude naam
+// Zodat de template (die 'statusColors' gebruikt) gewoon blijft werken.
+const statusColors = STATUS_COLORS;
 
 // Kleur bepalen voor rand
+// Hier gebruiken we de nieuwe PHASE_COLORS lijst
 const borderColor = computed(() => PHASE_COLORS[props.event.type] || PHASE_COLORS.default);
+
+// Label bepalen
 const phaseLabel = computed(() => PHASE_LABELS[props.event.type] || props.event.type);
 
 // Status per fase ophalen
