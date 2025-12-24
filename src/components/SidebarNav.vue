@@ -1,133 +1,140 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-
-const props = defineProps({
-  groepen: Array
+defineProps({
+  activeView: String,
+  isAdmin: Boolean
 });
 
-const activeIndex = ref(0);
-
-// Scroll naar de juiste maand als je op een bolletje klikt
-function scrollTo(sortKey, index) {
-    activeIndex.value = index;
-    const element = document.getElementById('maand-' + sortKey);
-    if (element) {
-        // Scroll iets minder ver (offset) vanwege de sticky header
-        const y = element.getBoundingClientRect().top + window.scrollY - 180;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-    }
-}
-
-// Check welke maand nu in beeld is
-function updateActiveState() {
-    const blocks = document.querySelectorAll('.month-block');
-    let current = -1;
-    
-    // Loop door alle blokken en kijk of de bovenkant in de bovenste helft van het scherm zit
-    blocks.forEach((block, index) => {
-        const rect = block.getBoundingClientRect();
-        if (rect.top < (window.innerHeight / 2)) {
-            current = index;
-        }
-    });
-
-    // Als we nog helemaal bovenin zijn, selecteer de eerste
-    if (current === -1 && blocks.length > 0) current = 0;
-    
-    activeIndex.value = current;
-}
-
-onMounted(() => {
-    window.addEventListener('scroll', updateActiveState);
-    // Eerste keer direct checken
-    updateActiveState();
-});
-
-onUnmounted(() => {
-    window.removeEventListener('scroll', updateActiveState);
-});
+defineEmits(['navigate', 'toggle-admin', 'new-item']);
 </script>
 
 <template>
-  <nav class="sidebar-nav">
-    <div 
-        v-for="(groep, index) in groepen" 
-        :key="groep.sortKey"
-        class="nav-item"
-        :class="{ active: index === activeIndex }"
-        @click="scrollTo(groep.sortKey, index)"
-    >
-        <span class="nav-label">
-            {{ groep.titel }}
-            <span class="count">({{ groep.items.length }})</span>
-        </span>
-        
-        <div class="nav-dot" 
-             :class="{
-                'high': groep.items.length > 7,
-                'med': groep.items.length >= 3 && groep.items.length <= 7,
-                'low': groep.items.length < 3
-             }"
-        ></div>
+  <aside class="sidebar-nav">
+    <div class="brand">
+        <h2>Agenda</h2>
     </div>
-  </nav>
+
+    <div class="nav-links">
+        <button 
+            class="nav-btn" 
+            :class="{ active: activeView === 'grid' }"
+            @click="$emit('navigate', 'grid')"
+        >
+            📅 Overzicht (Grid)
+        </button>
+        
+        <button 
+            class="nav-btn" 
+            :class="{ active: activeView === 'table' }"
+            @click="$emit('navigate', 'table')"
+        >
+            📄 Rapportage
+        </button>
+        
+        <button 
+            class="nav-btn" 
+            :class="{ active: activeView === 'agenda' }"
+            @click="$emit('navigate', 'agenda')"
+        >
+            ⏱️ Agenda Lijst
+        </button>
+    </div>
+
+    <div class="admin-section">
+        <button class="toggle-btn" @click="$emit('toggle-admin')">
+            {{ isAdmin ? '🔓 Admin Actief' : '🔒 Gast Modus' }}
+        </button>
+        
+        <button 
+            v-if="isAdmin"
+            class="nav-btn secondary"
+            :class="{ active: activeView === 'admin' }"
+            @click="$emit('navigate', 'admin')"
+        >
+            ⚙️ Beheer Datums
+        </button>
+    </div>
+
+    <div class="action-section">
+        <button class="new-item-btn" @click="$emit('new-item')">
+            + Nieuw Punt
+        </button>
+    </div>
+  </aside>
 </template>
 
 <style scoped>
 .sidebar-nav {
-    position: fixed;
-    right: 20px; top: 50%;
-    transform: translateY(-50%);
-    display: flex; flex-direction: column; gap: 12px;
-    z-index: 90;
-}
-
-.nav-item {
-    display: flex; align-items: center; justify-content: flex-end;
-    cursor: pointer; transition: transform 0.2s;
-}
-.nav-item:hover { transform: translateX(-5px); }
-
-/* Label styling */
-.nav-label {
-    background: #075895; /* WDOD Blue */
+    width: 250px;
+    background: #2c3e50;
     color: white;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 0.75rem; font-weight: 600;
-    margin-right: 12px; opacity: 0;
-    transform: translateX(10px);
-    transition: all 0.3s ease;
-    pointer-events: none; white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(7, 88, 149, 0.25);
+    height: 100vh;
+    position: fixed;
+    left: 0; top: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    z-index: 100;
 }
 
-.nav-item:hover .nav-label,
-.nav-item.active .nav-label {
-    opacity: 1; transform: translateX(0);
+.brand h2 {
+    color: white;
+    margin-top: 0;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #34495e;
 }
 
-/* Dots */
-.nav-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background-color: white;
-    border: 2px solid #ccc;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
+.nav-links {
+    margin-top: 20px;
+    display: flex; flex-direction: column; gap: 10px;
 }
 
-.nav-item.active .nav-dot {
-    transform: scale(1.5);
-    border-color: #075895;
+.nav-btn {
+    background: transparent;
+    border: none;
+    color: #ecf0f1;
+    text-align: left;
+    padding: 12px 15px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+.nav-btn:hover { background: #34495e; }
+.nav-btn.active { background: #3498db; color: white; font-weight: bold; }
+.nav-btn.secondary { font-size: 0.9rem; color: #bdc3c7; }
+
+.admin-section {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid #34495e;
+    display: flex; flex-direction: column; gap: 10px;
 }
 
-/* Traffic light / Heatmap colors mapped to WDOD Secondary Palette */
-.nav-dot.low { background-color: #93c01f; border-color: #93c01f; } /* Green */
-.nav-dot.med { background-color: #f29100; border-color: #f29100; } /* Orange */
-.nav-dot.high { background-color: #d74116; border-color: #d74116; } /* Red */
+.toggle-btn {
+    background: #2c3e50; border: 1px solid #7f8c8d; color: #bdc3c7;
+    padding: 8px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}
+.toggle-btn:hover { background: #34495e; color: white; }
 
-@media (max-width: 900px) {
-    .sidebar-nav { display: none; }
+.action-section { margin-top: 20px; }
+
+.new-item-btn {
+    width: 100%;
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+}
+.new-item-btn:hover { background: #219150; }
+
+@media (max-width: 1100px) {
+    .sidebar-nav { width: 80px; padding: 10px; }
+    .brand h2 { font-size: 0.8rem; }
+    .nav-btn { font-size: 0.8rem; padding: 10px 5px; text-align: center; }
+    .new-item-btn { font-size: 1.5rem; padding: 5px; }
 }
 </style>
