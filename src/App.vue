@@ -75,12 +75,11 @@
     if (sessionStorage.getItem('is-admin') === 'true') {
         isAdmin.value = true;
     }
-    // Gebruik de geoptimaliseerde resize functie
+    
     window.addEventListener('resize', handleResize);
   });
 
   onUnmounted(() => {
-    // Netjes opruimen bij afsluiten
     window.removeEventListener('resize', handleResize);
   });
 
@@ -159,15 +158,28 @@
     return events.sort((a, b) => a.dateObj - b.dateObj);
   });
 
+  // Haal unieke PH's uit de data
   const uniekePortefeuillehouders = computed(() => {
     const phSet = new Set();
     agendaPunten.value.forEach(item => {
         if (item.ph) {
+            // Soms staan er meerdere PH's gescheiden door '/'
             const parts = item.ph.split('/');
             parts.forEach(p => phSet.add(p.trim()));
         }
     });
     return Array.from(phSet).sort();
+  });
+
+  // NIEUW: Haal unieke Directeuren uit de data
+  const uniekeDirecteuren = computed(() => {
+    const dirSet = new Set();
+    agendaPunten.value.forEach(item => {
+        if (item.dir) {
+            dirSet.add(item.dir.trim());
+        }
+    });
+    return Array.from(dirSet).sort();
   });
 
   const gefilterdeEvents = computed(() => {
@@ -394,7 +406,16 @@
   <main :class="{ 'has-focus': activeFocusId !== null }">
     
     <DetailModal :show="isDetailOpen" :item="geselecteerdItem" @close="isDetailOpen = false" />
-    <EditModal :show="isEditOpen" :item="editItem" :availableDates="activeDates" @save="saveChanges" @close="isEditOpen = false" />
+    
+    <EditModal 
+        :show="isEditOpen" 
+        :item="editItem" 
+        :availableDates="activeDates" 
+        :portefeuillehouders="uniekePortefeuillehouders"
+        :directeuren="uniekeDirecteuren"
+        @save="saveChanges" 
+        @close="isEditOpen = false" 
+    />
     
     <DateManager 
         :isOpen="isDateManagerOpen" 
