@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   show: Boolean,
@@ -7,29 +7,38 @@ const props = defineProps({
   availableDates: {
     type: Object,
     default: () => ({})
+  },
+  // NIEUW: We ontvangen de lijsten nu van buitenaf (vanuit App.vue)
+  portefeuillehouders: {
+    type: Array,
+    default: () => []
+  },
+  directeuren: {
+    type: Array,
+    default: () => []
   }
 })
 
 const emit = defineEmits(['close', 'save'])
 
-// --- STANDAARD LIJSTEN ---
-const listPH = ['D.S. Schoonman', 'H.J. Pereboom', 'N. Koks', 'J.C.G. Wijnen', 'M. Wesselink', 'F. Stienstra'];
-const listDir = ['M. Werges', 'I. Geveke', 'M. Boersen'];
-const listHead = []; // Nog geen afdelingshoofden, dus leeg + 'Anders' optie
+// --- CONFIGURATIE ---
+// Afdelingshoofden en Labels houden we voorlopig even statisch, 
+// tenzij je die ook dynamisch wilt maken.
+const listHead = []; 
 const listLabels = ['Beleid', 'Uitvoering', 'Kaders', 'Organisatiegesteldheid', 'Externe ontwikkelingen', 'Evaluatie', 'P&C'];
 
 const defaultForm = {
   id: null,
   title: '',
-  ph: '',           // Portefeuillehouder
-  colleaguePH: '',  // Collega PH
-  dir: '',          // Directeur
-  headOfDept: '',   // Afdelingshoofd
-  on: '',           // Steller (gemapt op 'on' voor compatibiliteit data)
+  ph: '',           
+  colleaguePH: '',  
+  dir: '',          
+  headOfDept: '',   
+  on: '',           
   
   strategicLabel: '',
-  toelichting: '',  // Was 'comments' in data
-  comments: '',     // Voor de zekerheid beide behouden
+  toelichting: '',  
+  comments: '',     
   
   schedule: {
     PFO: '',
@@ -49,7 +58,7 @@ const defaultForm = {
 
 const formData = ref({ ...defaultForm })
 
-// --- UI STATUSSEN VOOR DROPDOWNS (Selectie vs Eigen Invoer) ---
+// --- UI STATUSSEN ---
 const uiState = ref({
   selPH: '',
   selColleaguePH: '',
@@ -58,10 +67,9 @@ const uiState = ref({
   selLabel: ''
 });
 
-// Statussen voor de planning blokjes
 const statusOptions = ['Concept', 'Ingediend', 'Geagendeerd', 'Afgerond'];
 
-// Helper om te bepalen of een waarde in de standaardlijst zit
+// Helper om te bepalen of een waarde in de lijst zit
 function setUiState(field, value, list) {
     if (!value) {
         uiState.value[field] = '';
@@ -72,43 +80,36 @@ function setUiState(field, value, list) {
     }
 }
 
-// Watcher: Als modal opent of item wijzigt
 watch(() => props.item, (newItem) => {
   if (newItem) {
     const copy = JSON.parse(JSON.stringify(newItem))
     
-    // Fallbacks voor lege objecten
     if (!copy.schedule) copy.schedule = { ...defaultForm.schedule }
     if (!copy.scheduleStatus) copy.scheduleStatus = { ...defaultForm.scheduleStatus }
-    
-    // Sync oude veldnamen indien nodig
     if (copy.portefeuillehouder && !copy.ph) copy.ph = copy.portefeuillehouder;
 
     formData.value = copy;
 
-    // UI state goedzetten
-    setUiState('selPH', copy.ph, listPH);
-    setUiState('selColleaguePH', copy.colleaguePH, listPH);
-    setUiState('selDir', copy.dir, listDir);
+    // UI state goedzetten met de dynamische props
+    setUiState('selPH', copy.ph, props.portefeuillehouders);
+    setUiState('selColleaguePH', copy.colleaguePH, props.portefeuillehouders);
+    setUiState('selDir', copy.dir, props.directeuren);
     setUiState('selHead', copy.headOfDept, listHead);
     setUiState('selLabel', copy.strategicLabel, listLabels);
 
   } else {
-    // Reset naar leeg
     formData.value = JSON.parse(JSON.stringify(defaultForm))
     formData.value.id = Date.now()
-    
-    // UI state reset
     uiState.value = { selPH: '', selColleaguePH: '', selDir: '', selHead: '', selLabel: '' };
   }
 }, { immediate: true })
 
-// Helper: update data als dropdown wijzigt
-function handleSelectChange(uiField, dataField, value) {
+function handleSelectChange(uiField, dataField, value, list) {
     if (value !== 'Anders') {
         formData.value[dataField] = value;
     } else {
-        if (listPH.includes(formData.value[dataField]) || listDir.includes(formData.value[dataField]) || listLabels.includes(formData.value[dataField])) {
+        // Als je terugschakelt van 'Anders' naar een bestaande waarde, reset dan het veld niet per ongeluk
+        if (list.includes(formData.value[dataField])) {
             formData.value[dataField] = ''; 
         }
     }
@@ -142,9 +143,9 @@ const cancel = () => {
         <div class="grid-2">
             <div class="form-group">
                 <label>Portefeuillehouder (PH)</label>
-                <select v-model="uiState.selPH" @change="handleSelectChange('selPH', 'ph', uiState.selPH)">
+                <select v-model="uiState.selPH" @change="handleSelectChange('selPH', 'ph', uiState.selPH, props.portefeuillehouders)">
                     <option value="">-- Selecteer --</option>
-                    <option v-for="opt in listPH" :key="opt" :value="opt">{{ opt }}</option>
+                    <option v-for="opt in props.portefeuillehouders" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
                 <input 
@@ -158,9 +159,9 @@ const cancel = () => {
 
             <div class="form-group">
                 <label>Collega Portefeuillehouder</label>
-                <select v-model="uiState.selColleaguePH" @change="handleSelectChange('selColleaguePH', 'colleaguePH', uiState.selColleaguePH)">
+                <select v-model="uiState.selColleaguePH" @change="handleSelectChange('selColleaguePH', 'colleaguePH', uiState.selColleaguePH, props.portefeuillehouders)">
                     <option value="">-- Geen --</option>
-                    <option v-for="opt in listPH" :key="opt" :value="opt">{{ opt }}</option>
+                    <option v-for="opt in props.portefeuillehouders" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
                 <input 
@@ -176,9 +177,9 @@ const cancel = () => {
         <div class="grid-2">
             <div class="form-group">
                 <label>Directielid</label>
-                <select v-model="uiState.selDir" @change="handleSelectChange('selDir', 'dir', uiState.selDir)">
+                <select v-model="uiState.selDir" @change="handleSelectChange('selDir', 'dir', uiState.selDir, props.directeuren)">
                     <option value="">-- Selecteer --</option>
-                    <option v-for="opt in listDir" :key="opt" :value="opt">{{ opt }}</option>
+                    <option v-for="opt in props.directeuren" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
                 <input 
@@ -192,7 +193,7 @@ const cancel = () => {
 
             <div class="form-group">
                 <label>Afdelingshoofd</label>
-                <select v-model="uiState.selHead" @change="handleSelectChange('selHead', 'headOfDept', uiState.selHead)">
+                <select v-model="uiState.selHead" @change="handleSelectChange('selHead', 'headOfDept', uiState.selHead, listHead)">
                     <option value="">-- Selecteer --</option>
                     <option v-for="opt in listHead" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
@@ -215,7 +216,7 @@ const cancel = () => {
 
             <div class="form-group">
                 <label>Strategisch Label</label>
-                <select v-model="uiState.selLabel" @change="handleSelectChange('selLabel', 'strategicLabel', uiState.selLabel)">
+                <select v-model="uiState.selLabel" @change="handleSelectChange('selLabel', 'strategicLabel', uiState.selLabel, listLabels)">
                     <option value="">-- Kies Label --</option>
                     <option v-for="opt in listLabels" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
@@ -344,17 +345,8 @@ const cancel = () => {
   width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.95rem; font-family: inherit;
 }
 
-/* NIEUW: Specifieke styling voor het steller veld om breedte te beperken */
-.input-steller {
-    max-width: 80%; /* Pas dit percentage aan naar wens, bijv. 70% of 300px */
-}
-
-/* Speciaal input veld voor 'Anders, nl...' */
-.custom-input {
-    margin-top: 8px;
-    background-color: #fffcf0;
-    border-color: #f1c40f;
-}
+.input-steller { max-width: 80%; }
+.custom-input { margin-top: 8px; background-color: #fffcf0; border-color: #f1c40f; }
 
 .input-row { display: flex; gap: 8px; }
 .date-select { flex: 2; }
