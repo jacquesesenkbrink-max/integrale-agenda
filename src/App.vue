@@ -17,7 +17,6 @@
   import AgendaView from './components/AgendaView.vue';
   import DateManager from './components/DateManager.vue';
 
-  // --- CONFIGURATIE ---
   const STORAGE_KEY_DATA = 'mijn-agenda-data-v2';
   const STORAGE_KEY_DATES = 'mijn-agenda-dates-v2';
 
@@ -58,6 +57,10 @@
   const strokeColor = ref('#2c3e50');
   const timelineRef = ref(null);
 
+  // NIEUW: Toast Melding State
+  const toast = ref({ visible: false, message: '', type: 'success' });
+  let toastTimeout = null;
+
   // --- PERFORMANCE OPTIMIZATION (DEBOUNCE) ---
   let resizeTimeout = null;
 
@@ -75,7 +78,6 @@
     if (sessionStorage.getItem('is-admin') === 'true') {
         isAdmin.value = true;
     }
-    
     window.addEventListener('resize', handleResize);
   });
 
@@ -104,7 +106,7 @@
     if(confirm("Weet je zeker dat je alle data wilt resetten naar de standaard items.js? Je kwijt gemaakte wijzigingen in de browser.")) {
         agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
         activeDates.value = JSON.parse(JSON.stringify(defaultDates));
-        alert("Data is gereset. De nieuwe P&C items zouden nu zichtbaar moeten zijn.");
+        showToast("Data succesvol gereset!", "success");
     }
   }
 
@@ -129,6 +131,16 @@
 
   function saveDates() {
     localStorage.setItem(STORAGE_KEY_DATES, JSON.stringify(activeDates.value));
+    showToast("Vergaderdata opgeslagen!");
+  }
+
+  // NIEUW: Toon feedback melding
+  function showToast(message, type = 'success') {
+    toast.value = { visible: true, message, type };
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.value.visible = false;
+    }, 3000); // Verdwijnt na 3 seconden
   }
 
   // --- LOGICA & TRANSFORMATIE ---
@@ -158,12 +170,10 @@
     return events.sort((a, b) => a.dateObj - b.dateObj);
   });
 
-  // Haal unieke PH's uit de data
   const uniekePortefeuillehouders = computed(() => {
     const phSet = new Set();
     agendaPunten.value.forEach(item => {
         if (item.ph) {
-            // Soms staan er meerdere PH's gescheiden door '/'
             const parts = item.ph.split('/');
             parts.forEach(p => phSet.add(p.trim()));
         }
@@ -171,13 +181,10 @@
     return Array.from(phSet).sort();
   });
 
-  // NIEUW: Haal unieke Directeuren uit de data
   const uniekeDirecteuren = computed(() => {
     const dirSet = new Set();
     agendaPunten.value.forEach(item => {
-        if (item.dir) {
-            dirSet.add(item.dir.trim());
-        }
+        if (item.dir) dirSet.add(item.dir.trim());
     });
     return Array.from(dirSet).sort();
   });
@@ -243,6 +250,7 @@
     if (isAdmin.value) {
         isAdmin.value = false;
         sessionStorage.removeItem('is-admin');
+        showToast("Uitgelogd", "success");
     } else {
         wachtwoordInput.value = ''; isLoginOpen.value = true;
     }
@@ -251,6 +259,7 @@
   function checkLogin() {
     if (wachtwoordInput.value === "wdo" || wachtwoordInput.value === "admin") {
         isAdmin.value = true; sessionStorage.setItem('is-admin', 'true'); isLoginOpen.value = false; 
+        showToast("Ingelogd als beheerder");
     } else { alert("Onjuist wachtwoord"); }
   }
 
@@ -271,16 +280,11 @@
       nextTick(() => {
           const preferredOrder = ['PFO', 'DBBesluit', 'DBInformeel', 'Delta', 'ABBesluit'];
           let targetEl = null;
-
           for (const type of preferredOrder) {
               const id = `card-${topicId}-${type}`;
               const el = document.getElementById(id);
-              if (el) {
-                  targetEl = el;
-                  break; 
-              }
+              if (el) { targetEl = el; break; }
           }
-
           if (targetEl) {
               targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
               drawConnections();
@@ -306,33 +310,35 @@
   }
 
   function updateJaar(j) { startJaar.value = j; clearFocus(); }
-  
-  function updatePH(ph) {
-      filterPH.value = ph;
-      clearFocus();
-  }
+  function updatePH(ph) { filterPH.value = ph; clearFocus(); }
 
   function saveChanges(updatedItem) {
       addToHistory();
       const index = agendaPunten.value.findIndex(i => i.id === updatedItem.id);
       if (index !== -1) agendaPunten.value[index] = updatedItem;
       else { if(!updatedItem.id) updatedItem.id = Date.now(); agendaPunten.value.push(updatedItem); }
+      
       isEditOpen.value = false;
+      showToast("Wijzigingen succesvol opgeslagen!"); // Feedback
   }
+
   function deleteItem(item) {
-      if(confirm(`Verwijderen: "${item.title}"?`)) { addToHistory(); agendaPunten.value = agendaPunten.value.filter(i => i.id !== item.id); }
+      if(confirm(`Verwijderen: "${item.title}"?`)) { 
+          addToHistory(); 
+          agendaPunten.value = agendaPunten.value.filter(i => i.id !== item.id); 
+          showToast("Item verwijderd", "error"); // Feedback (Rood)
+      }
   }
 
   function addToHistory() { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); futureStack.value = []; }
-  function undo() { if (historyStack.value.length) { futureStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = historyStack.value.pop(); } }
-  function redo() { if (futureStack.value.length) { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = futureStack.value.pop(); } }
+  function undo() { if (historyStack.value.length) { futureStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = historyStack.value.pop(); showToast("Ongedaan gemaakt"); } }
+  function redo() { if (futureStack.value.length) { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = futureStack.value.pop(); showToast("Opnieuw uitgevoerd"); } }
   function handleFileUpload(e) { /* ...bestaande code... */ }
 
   function drawConnections() {
     if (!activeFocusId.value || !timelineRef.value) return;
     const topicId = activeFocusId.value;
     const cards = Array.from(timelineRef.value.querySelectorAll(`[id^='card-${topicId}-']`));
-    
     cards.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
 
     if (cards.length < 2) { connectionsPath.value = ''; return; }
@@ -352,7 +358,6 @@
         const y1 = rectA.top + (rectA.height / 2) - containerRect.top;
         const x2 = rectB.left + (rectB.width / 2) - containerRect.left;
         const y2 = rectB.top + (rectB.height / 2) - containerRect.top;
-        
         const deltaY = y2 - y1;
         pathD += `M ${x1} ${y1} C ${x1} ${y1 + deltaY * 0.5}, ${x2} ${y2 - deltaY * 0.5}, ${x2} ${y2} `;
     }
@@ -405,8 +410,13 @@
 
   <main :class="{ 'has-focus': activeFocusId !== null }">
     
+    <transition name="fade">
+        <div v-if="toast.visible" class="toast-notification" :class="toast.type">
+            {{ toast.message }}
+        </div>
+    </transition>
+
     <DetailModal :show="isDetailOpen" :item="geselecteerdItem" @close="isDetailOpen = false" />
-    
     <EditModal 
         :show="isEditOpen" 
         :item="editItem" 

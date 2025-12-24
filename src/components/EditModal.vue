@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
   show: Boolean,
@@ -8,7 +8,6 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
-  // NIEUW: We ontvangen de lijsten nu van buitenaf (vanuit App.vue)
   portefeuillehouders: {
     type: Array,
     default: () => []
@@ -21,9 +20,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
-// --- CONFIGURATIE ---
-// Afdelingshoofden en Labels houden we voorlopig even statisch, 
-// tenzij je die ook dynamisch wilt maken.
 const listHead = []; 
 const listLabels = ['Beleid', 'Uitvoering', 'Kaders', 'Organisatiegesteldheid', 'Externe ontwikkelingen', 'Evaluatie', 'P&C'];
 
@@ -35,68 +31,43 @@ const defaultForm = {
   dir: '',          
   headOfDept: '',   
   on: '',           
-  
   strategicLabel: '',
   toelichting: '',  
   comments: '',     
-  
-  schedule: {
-    PFO: '',
-    DBBesluit: '',
-    DBInformeel: '',
-    Delta: '',
-    ABBesluit: ''
-  },
-  scheduleStatus: {
-    PFO: 'Concept',
-    DBBesluit: 'Concept',
-    DBInformeel: 'Concept',
-    Delta: 'Concept',
-    ABBesluit: 'Concept'
-  }
+  schedule: { PFO: '', DBBesluit: '', DBInformeel: '', Delta: '', ABBesluit: '' },
+  scheduleStatus: { PFO: 'Concept', DBBesluit: 'Concept', DBInformeel: 'Concept', Delta: 'Concept', ABBesluit: 'Concept' }
 }
 
 const formData = ref({ ...defaultForm })
+const errors = ref({}); // NIEUW: Houdt foutmeldingen bij
 
-// --- UI STATUSSEN ---
 const uiState = ref({
-  selPH: '',
-  selColleaguePH: '',
-  selDir: '',
-  selHead: '',
-  selLabel: ''
+  selPH: '', selColleaguePH: '', selDir: '', selHead: '', selLabel: ''
 });
 
 const statusOptions = ['Concept', 'Ingediend', 'Geagendeerd', 'Afgerond'];
 
-// Helper om te bepalen of een waarde in de lijst zit
 function setUiState(field, value, list) {
-    if (!value) {
-        uiState.value[field] = '';
-    } else if (list.includes(value)) {
-        uiState.value[field] = value;
-    } else {
-        uiState.value[field] = 'Anders';
-    }
+    if (!value) uiState.value[field] = '';
+    else if (list.includes(value)) uiState.value[field] = value;
+    else uiState.value[field] = 'Anders';
 }
 
 watch(() => props.item, (newItem) => {
+  errors.value = {}; // Reset fouten bij openen
   if (newItem) {
     const copy = JSON.parse(JSON.stringify(newItem))
-    
     if (!copy.schedule) copy.schedule = { ...defaultForm.schedule }
     if (!copy.scheduleStatus) copy.scheduleStatus = { ...defaultForm.scheduleStatus }
     if (copy.portefeuillehouder && !copy.ph) copy.ph = copy.portefeuillehouder;
 
     formData.value = copy;
 
-    // UI state goedzetten met de dynamische props
     setUiState('selPH', copy.ph, props.portefeuillehouders);
     setUiState('selColleaguePH', copy.colleaguePH, props.portefeuillehouders);
     setUiState('selDir', copy.dir, props.directeuren);
     setUiState('selHead', copy.headOfDept, listHead);
     setUiState('selLabel', copy.strategicLabel, listLabels);
-
   } else {
     formData.value = JSON.parse(JSON.stringify(defaultForm))
     formData.value.id = Date.now()
@@ -108,14 +79,26 @@ function handleSelectChange(uiField, dataField, value, list) {
     if (value !== 'Anders') {
         formData.value[dataField] = value;
     } else {
-        // Als je terugschakelt van 'Anders' naar een bestaande waarde, reset dan het veld niet per ongeluk
-        if (list.includes(formData.value[dataField])) {
-            formData.value[dataField] = ''; 
-        }
+        if (list.includes(formData.value[dataField])) formData.value[dataField] = ''; 
     }
 }
 
+// NIEUW: Validatie logica
+const validate = () => {
+    errors.value = {};
+    let isValid = true;
+    
+    if (!formData.value.title || formData.value.title.trim() === '') {
+        errors.value.title = 'Een titel is verplicht.';
+        isValid = false;
+    }
+    
+    return isValid;
+}
+
 const save = () => {
+  if (!validate()) return; // Stop als validatie faalt
+
   if(formData.value.toelichting) formData.value.comments = formData.value.toelichting;
   emit('save', formData.value)
 }
@@ -136,8 +119,15 @@ const cancel = () => {
       <div class="modal-body">
         
         <div class="form-group">
-          <label>Onderwerp Titel</label>
-          <input type="text" v-model="formData.title" placeholder="Bijv. Jaarstukken 2024" autofocus>
+          <label>Onderwerp Titel <span class="required">*</span></label>
+          <input 
+            type="text" 
+            v-model="formData.title" 
+            placeholder="Bijv. Jaarstukken 2024" 
+            autofocus
+            :class="{ 'has-error': errors.title }"
+          >
+          <span v-if="errors.title" class="error-msg">{{ errors.title }}</span>
         </div>
 
         <div class="grid-2">
@@ -148,13 +138,7 @@ const cancel = () => {
                     <option v-for="opt in props.portefeuillehouders" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
-                <input 
-                    v-if="uiState.selPH === 'Anders'" 
-                    type="text" 
-                    v-model="formData.ph" 
-                    placeholder="Vul naam PH in..." 
-                    class="custom-input"
-                >
+                <input v-if="uiState.selPH === 'Anders'" type="text" v-model="formData.ph" placeholder="Vul naam PH in..." class="custom-input">
             </div>
 
             <div class="form-group">
@@ -164,13 +148,7 @@ const cancel = () => {
                     <option v-for="opt in props.portefeuillehouders" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
-                <input 
-                    v-if="uiState.selColleaguePH === 'Anders'" 
-                    type="text" 
-                    v-model="formData.colleaguePH" 
-                    placeholder="Vul naam collega in..." 
-                    class="custom-input"
-                >
+                <input v-if="uiState.selColleaguePH === 'Anders'" type="text" v-model="formData.colleaguePH" placeholder="Vul naam collega in..." class="custom-input">
             </div>
         </div>
 
@@ -182,13 +160,7 @@ const cancel = () => {
                     <option v-for="opt in props.directeuren" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
-                <input 
-                    v-if="uiState.selDir === 'Anders'" 
-                    type="text" 
-                    v-model="formData.dir" 
-                    placeholder="Vul naam directeur in..." 
-                    class="custom-input"
-                >
+                <input v-if="uiState.selDir === 'Anders'" type="text" v-model="formData.dir" placeholder="Vul naam directeur in..." class="custom-input">
             </div>
 
             <div class="form-group">
@@ -198,19 +170,13 @@ const cancel = () => {
                     <option v-for="opt in listHead" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
-                <input 
-                    v-if="uiState.selHead === 'Anders'" 
-                    type="text" 
-                    v-model="formData.headOfDept" 
-                    placeholder="Vul naam afdelingshoofd in..." 
-                    class="custom-input"
-                >
+                <input v-if="uiState.selHead === 'Anders'" type="text" v-model="formData.headOfDept" placeholder="Vul naam afdelingshoofd in..." class="custom-input">
             </div>
         </div>
 
         <div class="grid-2">
             <div class="form-group">
-                <label>Steller(s) (max 2 namen)</label>
+                <label>Steller(s)</label>
                 <input type="text" v-model="formData.on" placeholder="Naam 1, Naam 2" class="input-steller">
             </div>
 
@@ -221,13 +187,7 @@ const cancel = () => {
                     <option v-for="opt in listLabels" :key="opt" :value="opt">{{ opt }}</option>
                     <option value="Anders">Anders, nl...</option>
                 </select>
-                <input 
-                    v-if="uiState.selLabel === 'Anders'" 
-                    type="text" 
-                    v-model="formData.strategicLabel" 
-                    placeholder="Vul label in..." 
-                    class="custom-input"
-                >
+                <input v-if="uiState.selLabel === 'Anders'" type="text" v-model="formData.strategicLabel" placeholder="Vul label in..." class="custom-input">
             </div>
         </div>
 
@@ -333,17 +293,17 @@ const cancel = () => {
 .modal-body { padding: 24px; flex: 1; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 10px; }
-
-.date-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
-  gap: 16px; background: #f9fafb; padding: 16px; border-radius: 6px; border: 1px solid #e5e7eb;
-}
+.date-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; background: #f9fafb; padding: 16px; border-radius: 6px; border: 1px solid #e5e7eb; }
 
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; color: #34495e; }
 .form-group input, .form-group textarea, .form-group select {
   width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.95rem; font-family: inherit;
 }
+/* Foutmelding stijlen */
+.has-error { border-color: #e74c3c !important; background-color: #fdf2f2; }
+.error-msg { color: #e74c3c; font-size: 0.85rem; margin-top: 4px; display: block; }
+.required { color: #e74c3c; }
 
 .input-steller { max-width: 80%; }
 .custom-input { margin-top: 8px; background-color: #fffcf0; border-color: #f1c40f; }
@@ -351,7 +311,6 @@ const cancel = () => {
 .input-row { display: flex; gap: 8px; }
 .date-select { flex: 2; }
 .status-select { flex: 1; font-weight: bold; }
-
 .status-select.Afgerond { color: #27ae60; border-color: #27ae60; }
 .status-select.Geagendeerd { color: #3498db; }
 
