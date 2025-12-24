@@ -1,0 +1,63 @@
+/* src/assets/main.css */
+
+:root {
+    /* --- WDODelta Corporate Palette --- */
+    --wdod-blue: #075895;   /* Pantone 541 - Primary */
+    --wdod-cyan: #00b0ea;   /* Pantone 2925 - Primary Accent */
+    --wdod-orange: #f29100; /* Secondary */
+    --wdod-red: #d74116;    /* Secondary */
+    --wdod-green: #93c01f;  /* Secondary */
+    
+    /* Backgrounds */
+    --bg-body: #f0f8fc;
+    --text-main: #075895;
+    --text-body: #333333;
+
+    /* --- Functional Phase Mapping --- */
+    
+    /* DB Besluit -> Primary Blue */
+    --c-db-besluit: var(--wdod-blue);  
+    
+    /* AB Besluit -> Corporate Red */
+    --c-ab-besluit: var(--wdod-red);  
+
+    /* Delta -> Corporate Green */
+    --c-delta: var(--wdod-green);       
+
+    /* PFO & Informeel */
+    --c-pfo: #5b2c6f;          /* Deep Purple */
+    --c-db-informeel: #1d7e91; /* Teal/Grey-Blue */
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-body);
+    color: var(--text-body);
+    margin: 0;
+    padding: 0;
+    line-height: 1.4;
+    overflow-x: hidden;
+}
+
+/* Align headings with corporate blue */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--wdod-blue);
+}
+
+button { font-family: inherit; }
+
+/* --- PRINT STYLES --- */
+@media print {
+    header, .reset-focus-btn, .sidebar-nav, .filter-container,
+    .admin-toolbar, .btn-icon, .card-footer, .login-btn,
+    .add-btn, .floating-controls {
+        display: none !important;
+    }
+    body { background: white; margin: 0; padding: 0; }
+    .container { width: 100% !important; max-width: none !important; margin: 0 !important; }
+    .card-wrapper, .month-block { 
+        break-inside: avoid; page-break-inside: avoid; 
+        border: 1px solid #ddd; box-shadow: none !important;
+    }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
