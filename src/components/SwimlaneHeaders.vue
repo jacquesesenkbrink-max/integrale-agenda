@@ -1,11 +1,15 @@
 <script setup>
-// We definiëren de headers hier zodat we ze een kleur kunnen geven
+import { useDataStore } from '../composables/useDataStore.js';
+
+const store = useDataStore();
+
+// We koppelen de labels aan de technische 'keys' (zoals in PHASES)
 const headers = [
-  { label: 'Portefeuille overleg', color: 'var(--c-pfo)' },
-  { label: 'Formeel DB', color: 'var(--c-db-besluit)' },
-  { label: 'Informeel DB', color: 'var(--c-db-informeel)' },
-  { label: 'Deltabijeenkomst', color: 'var(--c-delta)' },
-  { label: 'Formeel AB', color: 'var(--c-ab-besluit)' }
+  { key: 'PFO', label: 'Portefeuille overleg', color: 'var(--c-pfo)' },
+  { key: 'DBBesluit', label: 'Formeel DB', color: 'var(--c-db-besluit)' },
+  { key: 'DBInformeel', label: 'Informeel DB', color: 'var(--c-db-informeel)' },
+  { key: 'Delta', label: 'Deltabijeenkomst', color: 'var(--c-delta)' },
+  { key: 'ABBesluit', label: 'Formeel AB', color: 'var(--c-ab-besluit)' }
 ];
 </script>
 
@@ -15,11 +19,19 @@ const headers = [
       <div class="headers-grid">
         <div 
           v-for="header in headers" 
-          :key="header.label" 
+          :key="header.key" 
           class="header-item"
           :style="{ borderBottomColor: header.color }"
         >
-          {{ header.label }}
+          <span class="label-text">{{ header.label }}</span>
+          
+          <button 
+            class="toggle-mode-btn" 
+            @click="store.toggleLaneMode(header.key)"
+            :title="store.laneSettings[header.key] === 'dots' ? 'Toon als kaarten' : 'Toon als stippen'"
+          >
+            {{ store.laneSettings[header.key] === 'dots' ? '🟣' : '📄' }}
+          </button>
         </div>
       </div>
     </div>
@@ -31,13 +43,12 @@ const headers = [
   background: white;
   position: sticky;
   top: 0;
-  z-index: 80; /* Zorg dat hij onder de main header blijft maar boven content */
+  z-index: 80; 
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
   width: 100%;
 }
 
 .headers-content {
-  /* Zelfde regels als .container in App.vue voor perfecte uitlijning */
   max-width: 1400px; 
   margin: 0 auto; 
   padding: 0 20px;
@@ -45,39 +56,50 @@ const headers = [
 
 .headers-grid {
   display: grid;
-  /* 5 kolommen, even breed + de gap die ook in App.vue wordt gebruikt */
   grid-template-columns: repeat(5, 1fr); 
   gap: 15px; 
 }
 
 .header-item {
-  padding: 12px 5px;
+  padding: 8px 5px;
   font-weight: 800;
   color: #4b5563;
-  text-align: center;
   background: white;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  
-  /* De gekleurde balk onderaan */
   border-bottom-width: 5px; 
   border-bottom-style: solid;
-  
-  /* Streepje rechts tussen de kolommen */
   border-right: 1px solid #f3f4f6;
   
-  /* Zorgt dat de tekst mooi in het midden staat */
+  /* Flexbox voor uitlijning tekst en knopje */
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between; /* Spreid tekst en knop */
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .header-item:last-child {
   border-right: none;
 }
 
-/* Zorg dat headers verbergen op kleine schermen waar de grid layout ook verandert */
+.toggle-mode-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    opacity: 0.6;
+}
+
+.toggle-mode-btn:hover {
+    background: #f3f4f6;
+    opacity: 1;
+}
+
 @media (max-width: 1100px) {
     .headers-wrapper { display: none; }
 }

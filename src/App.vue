@@ -1,13 +1,9 @@
 <script setup>
-  import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
+  import { ref, watch, onMounted, nextTick } from 'vue';
   
-  // DATA IMPORTS
-  import { items as defaultItems } from './data/items.js';
-  import { meetingDates as defaultDates } from './data/meetingDates.js'; 
-  import { parseDate, getMonthName } from './utils/dateHelpers.js';
-  
-  // CONFIG IMPORT
-  import { PHASES, DEFAULT_COLOR } from './config/appSettings.js';
+  // COMPOSABLES (Onze nieuwe logica blokken!)
+  import { useDataStore } from './composables/useDataStore.js';
+  import { useConnections } from './composables/useConnections.js';
 
   // COMPONENT IMPORTS
   import TopicCard from './components/TopicCard.vue';
@@ -19,194 +15,68 @@
   import ReportView from './components/ReportView.vue';
   import AgendaView from './components/AgendaView.vue';
   import DateManager from './components/DateManager.vue';
-
-  const STORAGE_KEY_DATA = 'mijn-agenda-data-v2';
-  const STORAGE_KEY_DATES = 'mijn-agenda-dates-v2';
-
-  // --- DATA & STATE ---
-  const agendaPunten = ref([]); 
-  const viewMode = ref('grid'); 
-  const filterType = ref('fase');
-  const filterWaarde = ref('all');
-  const filterPH = ref(''); 
-  const startJaar = ref(0);
   
-  const activeFocusId = ref(null); 
-  const showOnlyFocus = ref(false); 
+  // CONFIG
+  import { PHASES } from './config/appSettings.js';
 
-  const isAdmin = ref(false); 
-  const fileInput = ref(null);
+  // --- SETUP STORES ---
+  const store = useDataStore();
+  
+  // Connections logic (heeft data van de store nodig)
+  const { connectionsPath, strokeColor, timelineRef, drawConnections } = useConnections(
+      store.activeFocusId, 
+      store.viewMode, 
+      store.laneSettings
+  );
 
-  // UI States
+  // --- LOCAL UI STATE ---
+  const viewMode = ref('grid'); // 'grid' (swimlanes), 'table', 'agenda'
   const isHeaderOpen = ref(true);
   const isFiltersOpen = ref(true);
+  
+  // Admin & Login
+  const isAdmin = ref(false);
   const isLoginOpen = ref(false);
   const wachtwoordInput = ref('');
-  const isDateManagerOpen = ref(false);
-  const activeDates = ref({});
+  const fileInput = ref(null);
 
   // Modals
   const isDetailOpen = ref(false);
   const isEditOpen = ref(false);
+  const isDateManagerOpen = ref(false);
+  
   const geselecteerdItem = ref(null);
   const editItem = ref(null);
 
-  // Undo/Redo Stacks
-  const historyStack = ref([]);
-  const futureStack = ref([]);
-
-  // SVG Refs
-  const connectionsPath = ref('');
-  const strokeColor = ref(DEFAULT_COLOR);
-  const timelineRef = ref(null);
-
+  // Toast
   const toast = ref({ visible: false, message: '', type: 'success' });
   let toastTimeout = null;
 
-  // --- PERFORMANCE OPTIMIZATION ---
-  let resizeTimeout = null;
-  function handleResize() {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => { drawConnections(); }, 200);
-  }
-
   // --- INITIALISATIE ---
   onMounted(() => {
-    loadData();
-    if (sessionStorage.getItem('is-admin') === 'true') { isAdmin.value = true; }
-    window.addEventListener('resize', handleResize);
+    store.loadData();
+    if (sessionStorage.getItem('is-admin') === 'true') {
+        isAdmin.value = true;
+    }
+    // Teken lijntjes na korte vertraging zodat DOM klaar is
+    setTimeout(() => drawConnections(), 500);
   });
 
-  onUnmounted(() => { window.removeEventListener('resize', handleResize); });
-
-  function loadData() {
-    const opgeslagen = localStorage.getItem(STORAGE_KEY_DATA);
-    if (opgeslagen) { agendaPunten.value = JSON.parse(opgeslagen); } 
-    else { agendaPunten.value = JSON.parse(JSON.stringify(defaultItems)); }
-
-    const opgeslagenDatums = localStorage.getItem(STORAGE_KEY_DATES);
-    if (opgeslagenDatums) { activeDates.value = JSON.parse(opgeslagenDatums); } 
-    else { activeDates.value = JSON.parse(JSON.stringify(defaultDates)); }
-  }
-
-  function resetToDefaults() {
-    if(confirm("Weet je zeker dat je alle data wilt resetten naar de standaard items.js?")) {
-        agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
-        activeDates.value = JSON.parse(JSON.stringify(defaultDates));
-        showToast("Data succesvol gereset!", "success");
-    }
-  }
-
-  watch(agendaPunten, (nieuweLijst) => {
-    localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(nieuweLijst));
-    if(activeFocusId.value) nextTick(() => drawConnections());
+  // --- WATCHERS VOOR VISUELE UPDATES ---
+  // Als data verandert -> herteken lijntjes
+  watch(() => store.agendaPunten, () => {
+      if(store.activeFocusId.value) nextTick(drawConnections);
   }, { deep: true });
 
-  watch([viewMode, showOnlyFocus, filterPH], () => {
-    nextTick(() => { if (activeFocusId.value) drawConnections(); });
-  });
+  // Als weergave of filters veranderen -> herteken lijntjes
+  watch([viewMode, store.showOnlyFocus, store.filterPH, store.laneSettings], () => {
+      nextTick(() => { 
+          if (store.activeFocusId.value) drawConnections(); 
+      });
+  }, { deep: true });
 
-  function saveDates() {
-    localStorage.setItem(STORAGE_KEY_DATES, JSON.stringify(activeDates.value));
-    showToast("Vergaderdata opgeslagen!");
-  }
 
-  function showToast(message, type = 'success') {
-    toast.value = { visible: true, message, type };
-    if (toastTimeout) clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => { toast.value.visible = false; }, 3000);
-  }
-
-  // --- LOGICA & TRANSFORMATIE ---
-  
-  const alleEvents = computed(() => {
-    const events = [];
-    agendaPunten.value.forEach(item => {
-        if (!item.schedule) return;
-        Object.keys(item.schedule).forEach(type => {
-            const dateStr = item.schedule[type];
-            if (!dateStr) return;
-            events.push({
-                uniqueId: `${item.id}-${type}`,
-                topicId: item.id,
-                title: item.title,
-                ph: item.ph,
-                dir: item.dir,
-                strategicLabel: item.strategicLabel,
-                comments: item.comments,
-                type: type,
-                dateDisplay: dateStr,
-                dateObj: parseDate(dateStr),
-                originalItem: item 
-            });
-        });
-    });
-    return events.sort((a, b) => a.dateObj - b.dateObj);
-  });
-
-  const uniekePortefeuillehouders = computed(() => {
-    const phSet = new Set();
-    agendaPunten.value.forEach(item => {
-        if (item.ph) item.ph.split('/').forEach(p => phSet.add(p.trim()));
-    });
-    return Array.from(phSet).sort();
-  });
-
-  const uniekeDirecteuren = computed(() => {
-    const dirSet = new Set();
-    agendaPunten.value.forEach(item => { if (item.dir) dirSet.add(item.dir.trim()); });
-    return Array.from(dirSet).sort();
-  });
-
-  const gefilterdeEvents = computed(() => {
-    let list = alleEvents.value;
-
-    if (activeFocusId.value && showOnlyFocus.value) {
-        return list.filter(e => e.topicId === activeFocusId.value);
-    }
-
-    if (startJaar.value > 0) list = list.filter(e => e.dateObj.getFullYear() >= startJaar.value);
-    
-    if (filterWaarde.value !== 'all') {
-        if (filterType.value === 'fase') {
-            if (filterWaarde.value === 'PFO' && filterPH.value) {
-                list = list.filter(e => {
-                    const item = e.originalItem;
-                    const phList = item.ph ? item.ph.split('/').map(n => n.trim()) : [];
-                    return phList.includes(filterPH.value) && !!item.schedule.PFO;
-                });
-            } 
-            else {
-                list = list.filter(e => e.type === filterWaarde.value);
-            }
-        }
-        else {
-            list = list.filter(e => e.strategicLabel === filterWaarde.value);
-        }
-    }
-    return list;
-  });
-
-  const gegroepeerdeLijst = computed(() => {
-    const groepen = {};
-    gefilterdeEvents.value.forEach(ev => {
-        const d = ev.dateObj;
-        let sortKey, titel;
-        if (d.getFullYear() === 9999) { sortKey = '9999-99'; titel = 'Datum onbekend'; } 
-        else { sortKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; titel = getMonthName(d); }
-        
-        if (!groepen[sortKey]) groepen[sortKey] = { titel, sortKey, items: [] };
-        groepen[sortKey].items.push(ev);
-    });
-    return Object.values(groepen).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  });
-
-  const uniekeJaren = computed(() => {
-    const jaren = new Set(alleEvents.value.map(e => e.dateObj.getFullYear()).filter(y => y < 9000));
-    return Array.from(jaren).sort();
-  });
-
-  // --- ACTIES ---
+  // --- UI ACTIES ---
 
   function toggleHeader() {
     isHeaderOpen.value = !isHeaderOpen.value;
@@ -215,7 +85,9 @@
 
   function handleAdminClick() {
     if (isAdmin.value) {
-        isAdmin.value = false; sessionStorage.removeItem('is-admin'); showToast("Uitgelogd", "success");
+        isAdmin.value = false;
+        sessionStorage.removeItem('is-admin');
+        showToast("Uitgelogd", "success");
     } else {
         wachtwoordInput.value = ''; isLoginOpen.value = true;
     }
@@ -228,23 +100,31 @@
     } else { alert("Onjuist wachtwoord"); }
   }
 
+  function showToast(message, type = 'success') {
+    toast.value = { visible: true, message, type };
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => { toast.value.visible = false; }, 3000);
+  }
+
+  // --- NAVIGATIE & FOCUS ---
+
   function toggleFocus(topicId) {
-    if (activeFocusId.value === topicId) clearFocus();
+    if (store.activeFocusId.value === topicId) clearFocus();
     else { 
-        activeFocusId.value = topicId; 
-        showOnlyFocus.value = false; 
-        nextTick(() => drawConnections()); 
+        store.activeFocusId.value = topicId; 
+        store.showOnlyFocus.value = false; 
+        nextTick(drawConnections); 
     }
   }
 
   function navigateToTopic(topicId) {
       viewMode.value = 'grid';
-      activeFocusId.value = topicId;
-      showOnlyFocus.value = false;
+      store.activeFocusId.value = topicId;
+      store.showOnlyFocus.value = false;
 
       nextTick(() => {
-          // Gebruik nu de centrale PHASES config!
           let targetEl = null;
+          // Probeer de kaarten te vinden in volgorde van fases
           for (const type of PHASES) {
               const id = `card-${topicId}-${type}`;
               const el = document.getElementById(id);
@@ -258,72 +138,56 @@
   }
 
   function clearFocus() { 
-      activeFocusId.value = null; connectionsPath.value = ''; showOnlyFocus.value = false;
+      store.activeFocusId.value = null; 
+      connectionsPath.value = ''; 
+      store.showOnlyFocus.value = false;
   }
 
+  // --- FILTER WRAPPERS ---
+  // De FilterBar stuurt events, die geven we door aan de store
+  function updateHoofdFilter(p) { 
+      store.filterType.value = p.type; 
+      store.filterWaarde.value = p.value; 
+      if (p.value !== 'PFO') store.filterPH.value = '';
+      clearFocus(); 
+  }
+
+  function updateJaar(j) { store.startJaar.value = j; clearFocus(); }
+  function updatePH(ph) { store.filterPH.value = ph; clearFocus(); }
+
+  // --- MODAL HANDLERS ---
   function openDetails(item) { geselecteerdItem.value = item; isDetailOpen.value = true; }
   function openNieuw() { editItem.value = null; isEditOpen.value = true; }
   function openEdit(item) { editItem.value = item; isEditOpen.value = true; }
   
-  function updateHoofdFilter(p) { 
-      filterType.value = p.type; filterWaarde.value = p.value; 
-      if (p.value !== 'PFO') filterPH.value = '';
-      clearFocus(); 
-  }
-
-  function updateJaar(j) { startJaar.value = j; clearFocus(); }
-  function updatePH(ph) { filterPH.value = ph; clearFocus(); }
-
-  function saveChanges(updatedItem) {
-      addToHistory();
-      const index = agendaPunten.value.findIndex(i => i.id === updatedItem.id);
-      if (index !== -1) agendaPunten.value[index] = updatedItem;
-      else { if(!updatedItem.id) updatedItem.id = Date.now(); agendaPunten.value.push(updatedItem); }
-      
+  function handleSave(updatedItem) {
+      store.saveChanges(updatedItem);
       isEditOpen.value = false;
-      showToast("Wijzigingen succesvol opgeslagen!"); 
+      showToast("Wijzigingen opgeslagen!");
   }
 
-  function deleteItem(item) {
-      if(confirm(`Verwijderen: "${item.title}"?`)) { 
-          addToHistory(); 
-          agendaPunten.value = agendaPunten.value.filter(i => i.id !== item.id); 
-          showToast("Item verwijderd", "error"); 
+  function handleDelete(item) {
+      if(confirm(`Verwijderen: "${item.title}"?`)) {
+          store.deleteItem(item);
+          showToast("Item verwijderd", "error");
+      }
+  }
+  
+  function handleSaveDates() {
+      store.saveDates();
+      showToast("Datums opgeslagen!");
+  }
+  
+  function handleReset() {
+      if(confirm("Alles resetten naar standaard data?")) {
+          store.resetToDefaults();
+          showToast("Data gereset");
       }
   }
 
-  function addToHistory() { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); futureStack.value = []; }
-  function undo() { if (historyStack.value.length) { futureStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = historyStack.value.pop(); showToast("Ongedaan gemaakt"); } }
-  function redo() { if (futureStack.value.length) { historyStack.value.push(JSON.parse(JSON.stringify(agendaPunten.value))); agendaPunten.value = futureStack.value.pop(); showToast("Opnieuw uitgevoerd"); } }
-  function handleFileUpload(e) { /* ... */ }
+  // File upload placeholder (logica kan later naar store indien nodig)
+  function handleFileUpload(e) { console.log("Upload nog niet geïmplementeerd in refactor"); }
 
-  function drawConnections() {
-    if (!activeFocusId.value || !timelineRef.value) return;
-    const topicId = activeFocusId.value;
-    const cards = Array.from(timelineRef.value.querySelectorAll(`[id^='card-${topicId}-']`));
-    cards.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-
-    if (cards.length < 2) { connectionsPath.value = ''; return; }
-
-    const style = window.getComputedStyle(cards[0]);
-    strokeColor.value = viewMode.value === 'dots' ? style.backgroundColor : style.borderTopColor;
-    if (!strokeColor.value || strokeColor.value === 'rgba(0, 0, 0, 0)') strokeColor.value = DEFAULT_COLOR;
-
-    const containerRect = timelineRef.value.getBoundingClientRect();
-    let pathD = '';
-    
-    for (let i = 0; i < cards.length - 1; i++) {
-        const rectA = cards[i].getBoundingClientRect();
-        const rectB = cards[i+1].getBoundingClientRect();
-        const x1 = rectA.left + (rectA.width / 2) - containerRect.left;
-        const y1 = rectA.top + (rectA.height / 2) - containerRect.top;
-        const x2 = rectB.left + (rectB.width / 2) - containerRect.left;
-        const y2 = rectB.top + (rectB.height / 2) - containerRect.top;
-        const deltaY = y2 - y1;
-        pathD += `M ${x1} ${y1} C ${x1} ${y1 + deltaY * 0.5}, ${x2} ${y2 - deltaY * 0.5}, ${x2} ${y2} `;
-    }
-    connectionsPath.value = pathD;
-  }
 </script>
 
 <template>
@@ -336,15 +200,14 @@
         <input type="file" ref="fileInput" @change="handleFileUpload" style="display: none" accept=".json">
         <div class="header-content">
             <h1>Bestuurlijke Planning WDODelta</h1>
-            <p class="subtitle">Versie v11.6</p>
+            <p class="subtitle">Versie v12.0 (Refactored)</p>
         </div>
     </div>
     
     <div class="header-actions">
       <div class="view-toggle">
         <button :class="{ active: viewMode === 'table' }" @click="viewMode = 'table'">📄 Tabel</button>
-        <button :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'">🃏 Kaart</button>
-        <button :class="{ active: viewMode === 'dots' }" @click="viewMode = 'dots'">🟣 Stippen</button>
+        <button :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'">🃏 Bord</button>
         <button :class="{ active: viewMode === 'agenda' }" @click="viewMode = 'agenda'">🗓️ Agenda</button>
       </div>
 
@@ -353,23 +216,23 @@
             <div class="admin-group">
                 <span class="label">Acties:</span>
                 <button class="action-btn new" @click="openNieuw">+ Nieuw</button>
-                <button class="action-btn" @click="resetToDefaults" style="background: #e67e22;">🔄 Data Resetten</button>
+                <button class="action-btn" @click="handleReset" style="background: #e67e22;">🔄 Reset</button>
             </div>
             <div class="admin-group">
                 <span class="label">Data:</span>
-                <button class="action-btn" @click="isDateManagerOpen = true">📅 Beheer Datums</button> 
+                <button class="action-btn" @click="isDateManagerOpen = true">📅 Datums</button> 
                 </div>
             <div class="admin-group">
                 <span class="label">Historie:</span>
-                <button class="action-btn" @click="undo" :disabled="historyStack.length === 0">↩️</button>
-                <button class="action-btn" @click="redo" :disabled="futureStack.length === 0">↪️</button>
+                <button class="action-btn" @click="store.undo" :disabled="store.historyStack.value.length === 0">↩️</button>
+                <button class="action-btn" @click="store.redo" :disabled="store.futureStack.value.length === 0">↪️</button>
             </div>
         </div>
       </transition>
     </div>
   </header>
 
-  <main :class="{ 'has-focus': activeFocusId !== null }">
+  <main :class="{ 'has-focus': store.activeFocusId.value !== null }">
     
     <transition name="fade">
         <div v-if="toast.visible" class="toast-notification" :class="toast.type">
@@ -378,20 +241,21 @@
     </transition>
 
     <DetailModal :show="isDetailOpen" :item="geselecteerdItem" @close="isDetailOpen = false" />
+    
     <EditModal 
         :show="isEditOpen" 
         :item="editItem" 
-        :availableDates="activeDates" 
-        :portefeuillehouders="uniekePortefeuillehouders"
-        :directeuren="uniekeDirecteuren"
-        @save="saveChanges" 
+        :availableDates="store.activeDates.value" 
+        :portefeuillehouders="store.uniekePortefeuillehouders.value"
+        :directeuren="store.uniekeDirecteuren.value"
+        @save="handleSave" 
         @close="isEditOpen = false" 
     />
     
     <DateManager 
         :isOpen="isDateManagerOpen" 
-        :initialDates="activeDates" 
-        @save-dates="saveDates" 
+        :initialDates="store.activeDates.value" 
+        @save-dates="handleSaveDates" 
         @close="isDateManagerOpen = false" 
     />
 
@@ -411,36 +275,39 @@
 
     <div v-show="isFiltersOpen">
         <FilterBar 
-            :jaren="uniekeJaren" 
-            :portefeuillehouders="uniekePortefeuillehouders"
+            :jaren="store.uniekeJaren.value" 
+            :portefeuillehouders="store.uniekePortefeuillehouders.value"
             @change-filter="updateHoofdFilter" 
             @change-jaar="updateJaar" 
             @change-ph="updatePH"
         />
     </div>
 
-    <div v-if="viewMode === 'grid' || viewMode === 'dots'">
-        <SidebarNav :groepen="gegroepeerdeLijst" />
+    <div v-if="viewMode === 'grid'">
+        <SidebarNav :groepen="store.gegroepeerdeLijst.value" />
         
-        <SwimlaneHeaders v-if="viewMode === 'grid' || viewMode === 'dots'" />
+        <SwimlaneHeaders />
 
-        <div class="container" ref="timelineRef" :class="{ 'view-dots': viewMode === 'dots' }">
+        <div class="container" ref="timelineRef">
           
           <svg id="connections-layer">
             <path v-if="connectionsPath" :d="connectionsPath" class="connection-line" :style="{ stroke: strokeColor }" />
           </svg>
 
-          <div v-if="gegroepeerdeLijst.length === 0" class="empty-state">
+          <div v-if="store.gegroepeerdeLijst.value.length === 0" class="empty-state">
              Geen punten gevonden. Probeer een ander filter of ander jaar.
           </div>
           
-          <div v-for="groep in gegroepeerdeLijst" :key="groep.sortKey" :id="'maand-' + groep.sortKey" class="month-block">
+          <div v-for="groep in store.gegroepeerdeLijst.value" :key="groep.sortKey" :id="'maand-' + groep.sortKey" class="month-block">
             <div class="month-header"><span class="month-badge">{{ groep.titel }}</span></div>
             <div class="grid-layout">
               <TopicCard 
                 v-for="ev in groep.items" :key="ev.uniqueId" 
-                :event="ev" :isAdmin="isAdmin" :isFocused="activeFocusId === ev.topicId" :isCompact="viewMode === 'dots'"
-                @toggle-focus="toggleFocus" @open-details="openDetails" @edit="openEdit" @delete="deleteItem"
+                :event="ev" 
+                :isAdmin="isAdmin" 
+                :isFocused="store.activeFocusId.value === ev.topicId" 
+                :isCompact="store.laneSettings.value[ev.type] === 'dots'"
+                @toggle-focus="toggleFocus" @open-details="openDetails" @edit="openEdit" @delete="handleDelete"
               />
             </div>
           </div>
@@ -449,7 +316,7 @@
 
     <div v-else-if="viewMode === 'table'" class="container">
         <ReportView 
-          :items="gefilterdeEvents" 
+          :items="store.gefilterdeEvents.value" 
           :isAdmin="isAdmin"
           @navigate-to-topic="navigateToTopic" 
         />
@@ -457,22 +324,22 @@
 
     <div v-else-if="viewMode === 'agenda'" class="container">
         <AgendaView 
-        :items="gefilterdeEvents" 
-        :activeFilter="filterWaarde"
-        :activeFocusId="activeFocusId" 
+        :items="store.gefilterdeEvents.value" 
+        :activeFilter="store.filterWaarde.value"
+        :activeFocusId="store.activeFocusId.value" 
         :isAdmin="isAdmin"
         @toggle-focus="toggleFocus"
         @item-click="openDetails" 
         />
     </div>
 
-    <div v-if="activeFocusId" class="floating-controls">
+    <div v-if="store.activeFocusId.value" class="floating-controls">
         <button 
             class="control-btn toggle-btn" 
-            :class="{ active: showOnlyFocus }" 
-            @click="showOnlyFocus = !showOnlyFocus"
+            :class="{ active: store.showOnlyFocus.value }" 
+            @click="store.showOnlyFocus.value = !store.showOnlyFocus.value"
         >
-            {{ showOnlyFocus ? '👐 Toon Alles' : '🔍 Focus Isoleren' }}
+            {{ store.showOnlyFocus.value ? '👐 Toon Alles' : '🔍 Focus Isoleren' }}
         </button>
         
         <button class="control-btn reset-btn" @click="clearFocus">
@@ -494,7 +361,7 @@
 </template>
 
 <style scoped>
-/* Basis Styles */
+/* Basis Styles - Veel stijlen zijn nu overbodig geworden of verplaatst, hier de essentials */
 .login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; display:flex; justify-content:center; align-items:center; }
 .login-modal { background:white; padding:25px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 5px 20px rgba(0,0,0,0.3); }
 .login-input { width:100%; padding:12px; margin:15px 0; border:1px solid #ccc; border-radius:4px; font-size:1rem; }
