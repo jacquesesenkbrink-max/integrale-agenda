@@ -1,9 +1,10 @@
 // src/composables/useDataStore.js
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { items as defaultItems } from '../data/items.js';
 import { meetingDates as defaultDates } from '../data/meetingDates.js';
 import { parseDate, getMonthName } from '../utils/dateHelpers.js';
-import { PHASES } from '../config/appSettings.js';
+// NIEUW: We importeren de centrale configuratie
+import { PHASE_ORDER, PHASE_CONFIG } from '../constants/types.js';
 
 const STORAGE_KEY_DATA = 'mijn-agenda-data-v2';
 const STORAGE_KEY_DATES = 'mijn-agenda-dates-v2';
@@ -17,14 +18,17 @@ export function useDataStore() {
     const futureStack = ref([]);
     
     // Filters & Focus
-    const filterType = ref('fase');
-    const filterWaarde = ref('all');
-    const filterPH = ref('');
+    const filterType = ref('fase');      // 'fase' of 'label'
+    const filterWaarde = ref('all');     // specifieke fase of label
+    const filterPH = ref('');            // specifieke wethouder
     const startJaar = ref(0);
     const activeFocusId = ref(null);
     const showOnlyFocus = ref(false);
+    
+    // NIEUW: Zoekterm state
+    const searchQuery = ref('');
 
-    // NIEUW: Instellingen per Swimlane (grid vs dots)
+    // Instellingen per Swimlane (grid vs dots)
     const laneSettings = ref({});
 
     // --- INITIALISATIE ---
@@ -45,14 +49,14 @@ export function useDataStore() {
             activeDates.value = JSON.parse(JSON.stringify(defaultDates));
         }
 
-        // 3. Lane Settings laden (of defaults zetten)
+        // 3. Lane Settings laden (of defaults zetten o.b.v. PHASE_ORDER)
         const opgeslagenLanes = localStorage.getItem(STORAGE_KEY_LANES);
         if (opgeslagenLanes) {
             laneSettings.value = JSON.parse(opgeslagenLanes);
         } else {
-            // Default: alles op 'grid' (kaartjes)
-            PHASES.forEach(phase => {
-                laneSettings.value[phase] = 'grid'; 
+            // Default: alles op 'grid'
+            PHASE_ORDER.forEach(phaseKey => {
+                laneSettings.value[phaseKey] = 'grid'; 
             });
         }
     }
@@ -78,6 +82,11 @@ export function useDataStore() {
             Object.keys(item.schedule).forEach(type => {
                 const dateStr = item.schedule[type];
                 if (!dateStr) return;
+                
+                // Veiligheidscheck: bestaat dit type in onze config?
+                // Zo niet, gebruiken we een fallback kleur, maar crashen we niet.
+                const config = PHASE_CONFIG[type] || { color: '#ccc' };
+
                 events.push({
                     uniqueId: `${item.id}-${type}`,
                     topicId: item.id,
@@ -87,6 +96,7 @@ export function useDataStore() {
                     strategicLabel: item.strategicLabel,
                     comments: item.comments,
                     type: type,
+                    color: config.color, // Geef kleur direct mee
                     dateDisplay: dateStr,
                     dateObj: parseDate(dateStr),
                     originalItem: item 
@@ -99,27 +109,46 @@ export function useDataStore() {
     const gefilterdeEvents = computed(() => {
         let list = alleEvents.value;
 
+        // 1. Focus filter (voor detail view)
         if (activeFocusId.value && showOnlyFocus.value) {
             return list.filter(e => e.topicId === activeFocusId.value);
         }
 
-        if (startJaar.value > 0) list = list.filter(e => e.dateObj.getFullYear() >= startJaar.value);
+        // 2. Jaar filter
+        if (startJaar.value > 0) {
+            list = list.filter(e => e.dateObj.getFullYear() >= startJaar.value);
+        }
         
+        // 3. Zoek filter (NIEUW)
+        if (searchQuery.value && searchQuery.value.trim() !== '') {
+            const q = searchQuery.value.toLowerCase().trim();
+            list = list.filter(e => 
+                e.title.toLowerCase().includes(q) || 
+                (e.comments && e.comments.toLowerCase().includes(q)) ||
+                (e.ph && e.ph.toLowerCase().includes(q))
+            );
+        }
+
+        // 4. Hoofdfilters (Fase / Label)
         if (filterWaarde.value !== 'all') {
             if (filterType.value === 'fase') {
-                if (filterWaarde.value === 'PFO' && filterPH.value) {
-                    list = list.filter(e => {
-                        const item = e.originalItem;
-                        const phList = item.ph ? item.ph.split('/').map(n => n.trim()) : [];
-                        return phList.includes(filterPH.value) && !!item.schedule.PFO;
-                    });
-                } else {
-                    list = list.filter(e => e.type === filterWaarde.value);
-                }
+                list = list.filter(e => e.type === filterWaarde.value);
             } else {
                 list = list.filter(e => e.strategicLabel === filterWaarde.value);
             }
         }
+
+        // 5. Portefeuillehouder Filter (Verbeterd)
+        // Dit werkt nu onafhankelijk van in welke 'tab' je zit, 
+        // zolang er maar een PH geselecteerd is.
+        if (filterPH.value && filterPH.value !== '') {
+            list = list.filter(e => {
+                if (!e.ph) return false;
+                const phList = e.ph.split('/').map(n => n.trim());
+                return phList.includes(filterPH.value);
+            });
+        }
+
         return list;
     });
 
@@ -142,6 +171,7 @@ export function useDataStore() {
         return Object.values(groepen).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     });
 
+    // Extractors voor dropdowns
     const uniekePortefeuillehouders = computed(() => {
         const phSet = new Set();
         agendaPunten.value.forEach(item => {
@@ -205,18 +235,17 @@ export function useDataStore() {
         activeDates.value = JSON.parse(JSON.stringify(defaultDates));
     }
 
-    // Toggle de weergave (grid/dots) voor een specifieke kolom
     function toggleLaneMode(phaseName) {
         const current = laneSettings.value[phaseName] || 'grid';
         laneSettings.value[phaseName] = current === 'grid' ? 'dots' : 'grid';
     }
 
-    // Geef alles terug wat de componenten nodig hebben
+    // Geef alles terug
     return {
         // State
         agendaPunten, activeDates, historyStack, futureStack, laneSettings,
-        // Filters
-        filterType, filterWaarde, filterPH, startJaar, activeFocusId, showOnlyFocus,
+        // Filters & Search
+        filterType, filterWaarde, filterPH, startJaar, activeFocusId, showOnlyFocus, searchQuery,
         // Computed
         alleEvents, gefilterdeEvents, gegroepeerdeLijst, 
         uniekePortefeuillehouders, uniekeDirecteuren, uniekeJaren,

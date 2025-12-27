@@ -1,16 +1,18 @@
 <script setup>
+import { computed } from 'vue';
 import { useDataStore } from '../composables/useDataStore.js';
+import { PHASE_ORDER, PHASE_CONFIG } from '../constants/types.js';
 
 const store = useDataStore();
 
-// We koppelen de labels aan de technische 'keys' (zoals in PHASES)
-const headers = [
-  { key: 'PFO', label: 'Portefeuille overleg', color: 'var(--c-pfo)' },
-  { key: 'DBBesluit', label: 'Formeel DB', color: 'var(--c-db-besluit)' },
-  { key: 'DBInformeel', label: 'Informeel DB', color: 'var(--c-db-informeel)' },
-  { key: 'Delta', label: 'Deltabijeenkomst', color: 'var(--c-delta)' },
-  { key: 'ABBesluit', label: 'Formeel AB', color: 'var(--c-ab-besluit)' }
-];
+// We genereren de headers dynamisch op basis van onze configuratie
+const headers = computed(() => {
+  return PHASE_ORDER.map(key => ({
+    key: key,
+    label: PHASE_CONFIG[key].label,
+    color: PHASE_CONFIG[key].color
+  }));
+});
 </script>
 
 <template>
@@ -72,10 +74,9 @@ const headers = [
   border-bottom-style: solid;
   border-right: 1px solid #f3f4f6;
   
-  /* Flexbox voor uitlijning tekst en knopje */
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Spreid tekst en knop */
+  justify-content: space-between; 
   padding-left: 10px;
   padding-right: 10px;
 }

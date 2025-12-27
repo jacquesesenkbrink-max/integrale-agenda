@@ -1,40 +1,67 @@
 // src/constants/types.js
 
-// De interne codes die we in de database/JSON gebruiken
+// 1. Definieer de unieke keys voor de fases
 export const TYPES = {
-  PFO: 'PFO',
-  DB_BESLUIT: 'DBBesluit',
-  DB_INFORMEEL: 'DBInformeel',
-  DELTA: 'Delta',
-  AB_BESLUIT: 'ABBesluit',
-  AB_BRIEF: 'ABBrief' // Kwam ik ook tegen in je data
-};
-
-// De kleuren per fase (verwijst naar je CSS variabelen of hex)
-export const PHASE_COLORS = {
-  [TYPES.PFO]: 'var(--c-pfo)',
-  [TYPES.DB_BESLUIT]: 'var(--c-db-besluit)',
-  [TYPES.DB_INFORMEEL]: 'var(--c-db-informeel)',
-  [TYPES.DELTA]: 'var(--c-delta)',
-  [TYPES.AB_BESLUIT]: 'var(--c-ab-besluit)',
-  // Fallback kleur
-  default: '#ccc'
-};
-
-// De leesbare labels voor in de interface
-export const PHASE_LABELS = {
-  [TYPES.PFO]: 'PFO',
-  [TYPES.DB_BESLUIT]: 'DB Besluit',
-  [TYPES.DB_INFORMEEL]: 'Informeel DB',
-  [TYPES.DELTA]: 'Delta',
-  [TYPES.AB_BESLUIT]: 'AB Besluit',
-  [TYPES.AB_BRIEF]: 'Brief aan AB'
-};
-
-// Status kleuren (Concept, Ingediend, etc.)
-export const STATUS_COLORS = {
-  Concept: '#95a5a6',     // Grijs
-  Ingediend: '#f39c12',   // Oranje
-  Geagendeerd: '#3498db', // Blauw
-  Afgerond: '#27ae60'     // Groen
-};
+    PFO: 'PFO',
+    DB_BESLUIT: 'DBBesluit',
+    DB_INFORMEEL: 'DBInformeel',
+    DELTA: 'Delta',
+    AB_BESLUIT: 'ABBesluit',
+    // Fallbacks of toekomstige types
+    AB_BRIEF: 'ABBrief' 
+  };
+  
+  // 2. Bepaal de vaste volgorde (handig voor loops in je componenten)
+  export const PHASE_ORDER = [
+    TYPES.PFO, 
+    TYPES.DB_BESLUIT, 
+    TYPES.DB_INFORMEEL, 
+    TYPES.DELTA, 
+    TYPES.AB_BESLUIT
+  ];
+  
+  // 3. Configuratie per fase (Label, Korte naam, Kleur CSS var)
+  export const PHASE_CONFIG = {
+    [TYPES.PFO]: { 
+        label: 'Portefeuille Overleg', 
+        short: 'PFO',          
+        color: 'var(--c-pfo)' 
+    },
+    [TYPES.DB_BESLUIT]: { 
+        label: 'Formeel DB',           
+        short: 'DB Besluit',   
+        color: 'var(--c-db-besluit)' 
+    },
+    [TYPES.DB_INFORMEEL]: { 
+        label: 'Informeel DB',         
+        short: 'Inf. DB',      
+        color: 'var(--c-db-informeel)' 
+    },
+    [TYPES.DELTA]: { 
+        label: 'Deltabijeenkomst',     
+        short: 'Delta',        
+        color: 'var(--c-delta)' 
+    },
+    [TYPES.AB_BESLUIT]: { 
+        label: 'Formeel AB',           
+        short: 'AB Besluit',   
+        color: 'var(--c-ab-besluit)' 
+    },
+    // Fallback
+    [TYPES.AB_BRIEF]: { 
+        label: 'Brief aan AB',         
+        short: 'Brief AB',     
+        color: '#9ca3af' 
+    } 
+  };
+  
+  // 4. Strategische labels (ook handig om centraal te hebben)
+  export const STRATEGIC_LABELS = [
+    'Beleid',
+    'Uitvoering',
+    'Kaders',
+    'Evaluatie',
+    'Organisatiegesteldheid',
+    'Externe ontwikkelingen',
+    'P&C'
+  ];
