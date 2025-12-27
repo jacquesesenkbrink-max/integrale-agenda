@@ -4,13 +4,13 @@ import { computed } from 'vue';
 const props = defineProps({
   event: Object,
   isAdmin: Boolean,
-  isFocused: Boolean,
-  isCompact: Boolean // <--- Hier luistert hij nu naar!
+  isFocused: Boolean
+  // isCompact is hier weggehaald, we tonen altijd de kaart
 });
 
 const emit = defineEmits(['toggle-focus', 'open-details', 'edit', 'delete']);
 
-// Bepaal de kleur op basis van de status (voor het randje of de stip)
+// Bepaal de kleur op basis van de status
 const statusColor = computed(() => {
   const map = {
     'Concept': '#f1c40f',    // Geel
@@ -18,33 +18,18 @@ const statusColor = computed(() => {
     'Geagendeerd': '#3498db',// Blauw
     'Afgerond': '#27ae60'    // Groen
   };
-  // Fallback naar grijs als status onbekend is
   return map[props.event.originalItem?.scheduleStatus?.[props.event.type]] || '#95a5a6';
 });
 
-// Zorgt voor de juiste CSS classes
 const cardClasses = computed(() => ({
   'is-focused': props.isFocused,
-  'is-compact': props.isCompact, // <--- Activeert de 'stip' modus
   'is-admin': props.isAdmin
 }));
 </script>
 
 <template>
   <div class="card-wrapper" :class="cardClasses" :id="'card-' + event.uniqueId">
-    
-    <div 
-      v-if="isCompact" 
-      class="compact-dot"
-      :style="{ backgroundColor: statusColor }"
-      @click="emit('open-details', event.originalItem)"
-      :title="event.title + ' (' + (event.originalItem?.scheduleStatus?.[event.type] || 'Status onbekend') + ')'"
-    >
-      <div v-if="isFocused" class="focus-indicator"></div>
-    </div>
-
-
-    <div v-else class="topic-card" :style="{ borderTopColor: statusColor }">
+    <div class="topic-card" :style="{ borderTopColor: statusColor }">
       
       <div class="card-header">
         <span class="date-badge">{{ event.dateDisplay }}</span>
@@ -86,38 +71,10 @@ const cardClasses = computed(() => ({
 <style scoped>
 .card-wrapper {
   position: relative;
+  height: 100%; /* Zorg dat hij de grid-cel vult */
   transition: all 0.3s ease;
 }
 
-/* --- STIJLEN VOOR DE STIP (Compact) --- */
-.compact-dot {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  margin: 5px auto; /* Centreer in de kolom */
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  transition: transform 0.2s, box-shadow 0.2s;
-  position: relative;
-}
-
-.compact-dot:hover {
-  transform: scale(1.2);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-  z-index: 10;
-}
-
-.compact-dot .focus-indicator {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 12px; height: 12px;
-    background: white;
-    border-radius: 50%;
-}
-
-
-/* --- STIJLEN VOOR DE KAART (Normaal) --- */
 .topic-card {
   background: white;
   border-radius: 8px;
@@ -125,9 +82,9 @@ const cardClasses = computed(() => ({
   border-top: 4px solid #ccc; /* Wordt overschreven door inline style */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100%;
+  min-height: 140px; /* Minimale hoogte voor consistentie */
   transition: transform 0.2s, box-shadow 0.2s;
-  min-height: 140px;
 }
 
 .topic-card:hover {
@@ -228,8 +185,5 @@ const cardClasses = computed(() => ({
 .card-wrapper.is-focused .topic-card {
     box-shadow: 0 0 0 3px #f1c40f, 0 5px 15px rgba(0,0,0,0.2);
     border-color: #f1c40f !important;
-}
-.card-wrapper.is-focused .compact-dot {
-    box-shadow: 0 0 0 3px #f1c40f;
 }
 </style>
