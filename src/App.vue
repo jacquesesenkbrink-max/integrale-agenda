@@ -1,7 +1,7 @@
 <script setup>
   import { ref, watch, onMounted, nextTick } from 'vue';
   
-  // COMPOSABLES (Onze nieuwe logica blokken!)
+  // COMPOSABLES
   import { useDataStore } from './composables/useDataStore.js';
   import { useConnections } from './composables/useConnections.js';
 
@@ -22,7 +22,7 @@
   // --- SETUP STORES ---
   const store = useDataStore();
   
-  // Connections logic (heeft data van de store nodig)
+  // Connections logic
   const { connectionsPath, strokeColor, timelineRef, drawConnections } = useConnections(
       store.activeFocusId, 
       store.viewMode, 
@@ -30,7 +30,7 @@
   );
 
   // --- LOCAL UI STATE ---
-  const viewMode = ref('grid'); // 'grid' (swimlanes), 'table', 'agenda'
+  const viewMode = ref('grid'); 
   const isHeaderOpen = ref(true);
   const isFiltersOpen = ref(true);
   
@@ -58,17 +58,14 @@
     if (sessionStorage.getItem('is-admin') === 'true') {
         isAdmin.value = true;
     }
-    // Teken lijntjes na korte vertraging zodat DOM klaar is
     setTimeout(() => drawConnections(), 500);
   });
 
-  // --- WATCHERS VOOR VISUELE UPDATES ---
-  // Als data verandert -> herteken lijntjes
+  // --- WATCHERS ---
   watch(() => store.agendaPunten, () => {
       if(store.activeFocusId.value) nextTick(drawConnections);
   }, { deep: true });
 
-  // Als weergave of filters veranderen -> herteken lijntjes
   watch([viewMode, store.showOnlyFocus, store.filterPH, store.laneSettings], () => {
       nextTick(() => { 
           if (store.activeFocusId.value) drawConnections(); 
@@ -77,7 +74,6 @@
 
 
   // --- UI ACTIES ---
-
   function toggleHeader() {
     isHeaderOpen.value = !isHeaderOpen.value;
     if (isHeaderOpen.value) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -107,7 +103,6 @@
   }
 
   // --- NAVIGATIE & FOCUS ---
-
   function toggleFocus(topicId) {
     if (store.activeFocusId.value === topicId) clearFocus();
     else { 
@@ -124,7 +119,6 @@
 
       nextTick(() => {
           let targetEl = null;
-          // Probeer de kaarten te vinden in volgorde van fases
           for (const type of PHASES) {
               const id = `card-${topicId}-${type}`;
               const el = document.getElementById(id);
@@ -144,7 +138,6 @@
   }
 
   // --- FILTER WRAPPERS ---
-  // De FilterBar stuurt events, die geven we door aan de store
   function updateHoofdFilter(p) { 
       store.filterType.value = p.type; 
       store.filterWaarde.value = p.value; 
@@ -185,7 +178,6 @@
       }
   }
 
-  // File upload placeholder (logica kan later naar store indien nodig)
   function handleFileUpload(e) { console.log("Upload nog niet geïmplementeerd in refactor"); }
 
 </script>
@@ -200,7 +192,7 @@
         <input type="file" ref="fileInput" @change="handleFileUpload" style="display: none" accept=".json">
         <div class="header-content">
             <h1>Bestuurlijke Planning WDODelta</h1>
-            <p class="subtitle">Versie v12.0 (Refactored)</p>
+            <p class="subtitle">Versie v12.1 (Refactored)</p>
         </div>
     </div>
     
@@ -361,7 +353,6 @@
 </template>
 
 <style scoped>
-/* Basis Styles - Veel stijlen zijn nu overbodig geworden of verplaatst, hier de essentials */
 .login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; display:flex; justify-content:center; align-items:center; }
 .login-modal { background:white; padding:25px; border-radius:8px; width:90%; max-width:400px; box-shadow:0 5px 20px rgba(0,0,0,0.3); }
 .login-input { width:100%; padding:12px; margin:15px 0; border:1px solid #ccc; border-radius:4px; font-size:1rem; }
@@ -394,25 +385,4 @@ header.collapsed { max-height: 0; padding: 0; opacity: 0; pointer-events: none; 
 
 .month-block { margin-bottom: 40px; scroll-margin-top: 140px; position: relative; z-index: 2; }
 .month-header { text-align: center; margin-bottom: 20px; position: relative; }
-.month-header::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #ccc; z-index: -1; }
-.month-badge { background-color: #fff; color: #2c3e50; border: 2px solid #2c3e50; padding: 5px 20px; border-radius: 30px; font-weight: bold; }
-.grid-layout { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-@media (min-width: 1100px) { .grid-layout { grid-template-columns: repeat(5, 1fr); align-items: start; } }
-
-main.has-focus .month-block { z-index: 10; } 
-main.has-focus .card-wrapper { opacity: 0.2; filter: grayscale(100%); transition: opacity 0.3s; }
-
-.floating-controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; z-index: 200; animation: popIn 0.3s; background: white; padding: 5px; border-radius: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid #ddd; }
-.control-btn { padding: 10px 20px; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; white-space: nowrap; }
-.reset-btn { background: #e74c3c; color: white; }
-.reset-btn:hover { background: #c0392b; }
-.toggle-btn { background: #f1c40f; color: #34495e; }
-.toggle-btn:hover { background: #f39c12; color: white; }
-.toggle-btn.active { background: #27ae60; color: white; }
-
-@keyframes popIn { from { transform: translate(-50%, 50px); } to { transform: translate(-50%, 0); } }
-
-.admin-floating-btn { position: fixed; bottom: 20px; right: 20px; z-index: 1000; background: #2c3e50; color: white; border: 2px solid white; padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; font-weight: bold; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
-.admin-floating-btn:hover { transform: scale(1.05) translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); background: #34495e; }
-.admin-floating-btn.active { background: #e74c3c; border-color: #c0392b; }
-</style>
+.month-header::before { content: ''; position: absolute
