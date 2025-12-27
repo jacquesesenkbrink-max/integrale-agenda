@@ -7,8 +7,6 @@ export const TYPES = {
     DB_INFORMEEL: 'DBInformeel',
     DELTA: 'Delta',
     AB_BESLUIT: 'ABBesluit',
-    // Fallbacks of toekomstige types
-    AB_BRIEF: 'ABBrief' 
   };
   
   // 2. Bepaal de vaste volgorde (handig voor loops in je componenten)
@@ -47,12 +45,6 @@ export const TYPES = {
         short: 'AB Besluit',   
         color: 'var(--c-ab-besluit)' 
     },
-    // Fallback
-    [TYPES.AB_BRIEF]: { 
-        label: 'Brief aan AB',         
-        short: 'Brief AB',     
-        color: '#9ca3af' 
-    } 
   };
   
   // 4. Strategische labels (ook handig om centraal te hebben)
