@@ -4,8 +4,12 @@ import { ref, computed, onMounted, watch } from 'vue';
 const props = defineProps({
   items: Array,
   activeFilter: String,
-  isAdmin: Boolean
+  isAdmin: Boolean,
+  activeFocusId: [String, Number] // <--- Deze regel is toegevoegd om de error op te lossen
 });
+
+// Het is best practice om ook de emits te definiëren (voorkomt toekomstige warnings)
+const emit = defineEmits(['toggle-focus', 'item-click']);
 
 // Opslag voor vergaderdetails (tijd/locatie/soort stuk) én volgorde/tijdsduur
 const meetingMeta = ref({});

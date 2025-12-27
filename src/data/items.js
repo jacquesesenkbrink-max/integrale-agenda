@@ -11,8 +11,8 @@ export const items = [
     strategicLabel: "Beleid", 
     toelichting: "21/10 aangemeld als hamerstuk. 07/11 mail van Marieke met doorschuiven.", 
     comments: "21/10 aangemeld als hamerstuk. 07/11 mail van Marieke met doorschuiven.",
-    schedule: { PFO: "25-11-2025", DBBesluit: "02-12-2025", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Geagendeerd", ABBrief: "Concept" }
+    schedule: { PFO: "25-11-2025", DBBesluit: "02-12-2025", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Geagendeerd", ABBesluit: "Concept" }
   },
   { 
     id: 2, 
@@ -98,8 +98,8 @@ export const items = [
     dir: "M. Boersen", 
     strategicLabel: "Kaders", 
     toelichting: "Besluitvorming DB en ter informatie AB.",
-    schedule: { PFO: "21-04-2026", DBBesluit: "05-05-2026", ABBrief: "26-05-2026" },
-    scheduleStatus: { PFO: "Concept", DBBesluit: "Concept", ABBrief: "Concept" }
+    schedule: { PFO: "21-04-2026", DBBesluit: "05-05-2026", ABBesluit: "26-05-2026" },
+    scheduleStatus: { PFO: "Concept", DBBesluit: "Concept", ABBesluit: "Concept" }
   },
   { 
     id: 11, 
@@ -110,8 +110,8 @@ export const items = [
     dir: "M. Boersen", 
     strategicLabel: "Uitvoering", 
     toelichting: "Check bij Mira voor planning? Welke data of rechtstreeks door naar AB 03-02?",
-    schedule: { PFO: "25-11-2025", DBBesluit: "02-12-2025", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Afgerond", ABBrief: "Ingediend" }
+    schedule: { PFO: "25-11-2025", DBBesluit: "02-12-2025", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Afgerond", ABBesluit: "Ingediend" }
   },
   { 
     id: 12, 
@@ -144,8 +144,8 @@ export const items = [
     headOfDept: "F. Kroes", 
     dir: "M. Werges", 
     strategicLabel: "P&C", // AANGEPAST: Was Beleid, nu P&C om filter te testen
-    schedule: { PFO: "20-01-2026", DBBesluit: "27-01-2026", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Concept", DBBesluit: "Concept", ABBrief: "Concept" }
+    schedule: { PFO: "20-01-2026", DBBesluit: "27-01-2026", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Concept", DBBesluit: "Concept", ABBesluit: "Concept" }
   },
   { 
     id: 15, 
@@ -169,8 +169,8 @@ export const items = [
     dir: "M. Boersen", 
     strategicLabel: "Externe ontwikkelingen", 
     toelichting: "Miranda in de lead, Folkert meenemen. Doorgeschoven.",
-    schedule: { PFO: "08-12-2025", DBBesluit: "16-12-2025", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Ingediend", ABBrief: "Concept" }
+    schedule: { PFO: "08-12-2025", DBBesluit: "16-12-2025", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Ingediend", ABBesluit: "Concept" }
   },
   { 
     id: 22, 
@@ -286,8 +286,8 @@ export const items = [
     dir: "M. Boersen", 
     strategicLabel: "Uitvoering", 
     toelichting: "Vervolg op 01/04 en 27/10.",
-    schedule: { PFO: "24-11-2025", DBBesluit: "02-12-2025", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Afgerond", ABBrief: "Concept" }
+    schedule: { PFO: "24-11-2025", DBBesluit: "02-12-2025", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Afgerond", DBBesluit: "Afgerond", ABBesluit: "Concept" }
   },
   { 
     id: 38, 
@@ -309,8 +309,8 @@ export const items = [
     dir: "M. Werges", 
     strategicLabel: "Uitvoering", 
     toelichting: "DB Voorstel en brief AB.",
-    schedule: { PFO: "06-01-2026", DBBesluit: "13-01-2026", ABBrief: "03-02-2026" },
-    scheduleStatus: { PFO: "Ingediend", DBBesluit: "Concept", ABBrief: "Concept" }
+    schedule: { PFO: "06-01-2026", DBBesluit: "13-01-2026", ABBesluit: "03-02-2026" },
+    scheduleStatus: { PFO: "Ingediend", DBBesluit: "Concept", ABBesluit: "Concept" }
   },
   { 
     id: 41, 

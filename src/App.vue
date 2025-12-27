@@ -178,7 +178,7 @@
       }
   }
 
-  function handleFileUpload(e) { console.log("Upload nog niet geïmplementeerd in refactor"); }
+function handleFileUpload() {  console.log("Upload nog niet geïmplementeerd in refactor");}
 
 </script>
 
