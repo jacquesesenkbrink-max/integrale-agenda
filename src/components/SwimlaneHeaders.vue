@@ -28,11 +28,10 @@ const headers = computed(() => {
           <span class="label-text">{{ header.label }}</span>
           
           <button 
-            class="toggle-mode-btn" 
-            @click="store.toggleLaneMode(header.key)"
-            :title="store.laneSettings[header.key] === 'dots' ? 'Toon als kaarten' : 'Toon als stippen'"
-          >
-            {{ store.laneSettings[header.key] === 'dots' ? '🟣' : '📄' }}
+              class="toggle-mode-btn" 
+              @click="store.toggleLaneMode(header.key)"
+              :title="store.laneSettings.value[header.key] === 'dots' ? 'Toon als kaarten' : 'Toon als stippen'"
+>             {{ store.laneSettings.value[header.key] === 'dots' ? '🟣' : '📄' }}
           </button>
         </div>
       </div>
