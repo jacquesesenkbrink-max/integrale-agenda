@@ -3,37 +3,38 @@ import { ref, computed, watch } from 'vue';
 import { items as defaultItems } from '../data/items.js';
 import { meetingDates as defaultDates } from '../data/meetingDates.js';
 import { parseDate, getMonthName } from '../utils/dateHelpers.js';
-// NIEUW: We importeren de centrale configuratie
 import { PHASE_ORDER, PHASE_CONFIG } from '../constants/types.js';
 
 const STORAGE_KEY_DATA = 'mijn-agenda-data-v2';
 const STORAGE_KEY_DATES = 'mijn-agenda-dates-v2';
 const STORAGE_KEY_LANES = 'mijn-agenda-lanes-v1';
 
+// --- GLOBAL STATE (Staat nu BUITEN de functie!) ---
+// Hierdoor delen alle componenten dezelfde data
+const agendaPunten = ref([]);
+const activeDates = ref({});
+const historyStack = ref([]);
+const futureStack = ref([]);
+
+// Filters & Focus
+const filterType = ref('fase');
+const filterWaarde = ref('all');
+const filterPH = ref('');
+const startJaar = ref(0);
+const activeFocusId = ref(null);
+const showOnlyFocus = ref(false);
+const searchQuery = ref('');
+
+// Lane Settings
+const laneSettings = ref({});
+
 export function useDataStore() {
-    // --- STATE ---
-    const agendaPunten = ref([]);
-    const activeDates = ref({});
-    const historyStack = ref([]);
-    const futureStack = ref([]);
     
-    // Filters & Focus
-    const filterType = ref('fase');      // 'fase' of 'label'
-    const filterWaarde = ref('all');     // specifieke fase of label
-    const filterPH = ref('');            // specifieke wethouder
-    const startJaar = ref(0);
-    const activeFocusId = ref(null);
-    const showOnlyFocus = ref(false);
-    
-    // NIEUW: Zoekterm state
-    const searchQuery = ref('');
-
-    // Instellingen per Swimlane (grid vs dots)
-    const laneSettings = ref({});
-
-    // --- INITIALISATIE ---
+    // --- INITIALISATIE (Blijft binnen de functie, maar checkt of data al geladen is) ---
     function loadData() {
-        // 1. Data laden
+        // Alleen laden als we nog geen data hebben, of om een refresh te forceren
+        if (agendaPunten.value.length > 0) return; 
+
         const opgeslagen = localStorage.getItem(STORAGE_KEY_DATA);
         if (opgeslagen) {
             agendaPunten.value = JSON.parse(opgeslagen);
@@ -41,7 +42,6 @@ export function useDataStore() {
             agendaPunten.value = JSON.parse(JSON.stringify(defaultItems));
         }
 
-        // 2. Datums laden
         const opgeslagenDatums = localStorage.getItem(STORAGE_KEY_DATES);
         if (opgeslagenDatums) {
             activeDates.value = JSON.parse(opgeslagenDatums);
@@ -49,19 +49,20 @@ export function useDataStore() {
             activeDates.value = JSON.parse(JSON.stringify(defaultDates));
         }
 
-        // 3. Lane Settings laden (of defaults zetten o.b.v. PHASE_ORDER)
         const opgeslagenLanes = localStorage.getItem(STORAGE_KEY_LANES);
         if (opgeslagenLanes) {
             laneSettings.value = JSON.parse(opgeslagenLanes);
         } else {
-            // Default: alles op 'grid'
             PHASE_ORDER.forEach(phaseKey => {
                 laneSettings.value[phaseKey] = 'grid'; 
             });
         }
     }
 
-    // --- WATCHERS (Auto-save) ---
+    // --- WATCHERS ---
+    // Let op: Watchers in een composable kunnen soms dubbel draaien als je niet oppast.
+    // In dit simpele geval is het vaak prima, maar idealiter zet je deze ook globaal 
+    // of in App.vue. Voor nu laten we ze hier staan zodat het werkt.
     watch(agendaPunten, (nieuweLijst) => {
         localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(nieuweLijst));
     }, { deep: true });
@@ -74,7 +75,9 @@ export function useDataStore() {
         localStorage.setItem(STORAGE_KEY_DATES, JSON.stringify(activeDates.value));
     }
 
-    // --- COMPUTED (Logica) ---
+    // --- COMPUTED (Deze moeten wel IN de functie blijven of globaal gemaakt worden) ---
+    // Omdat computed afhankelijk is van de refs die nu globaal zijn, 
+    // werkt dit prima binnen de functie.
     const alleEvents = computed(() => {
         const events = [];
         agendaPunten.value.forEach(item => {
@@ -83,8 +86,6 @@ export function useDataStore() {
                 const dateStr = item.schedule[type];
                 if (!dateStr) return;
                 
-                // Veiligheidscheck: bestaat dit type in onze config?
-                // Zo niet, gebruiken we een fallback kleur, maar crashen we niet.
                 const config = PHASE_CONFIG[type] || { color: '#ccc' };
 
                 events.push({
@@ -96,7 +97,7 @@ export function useDataStore() {
                     strategicLabel: item.strategicLabel,
                     comments: item.comments,
                     type: type,
-                    color: config.color, // Geef kleur direct mee
+                    color: config.color,
                     dateDisplay: dateStr,
                     dateObj: parseDate(dateStr),
                     originalItem: item 
@@ -109,17 +110,14 @@ export function useDataStore() {
     const gefilterdeEvents = computed(() => {
         let list = alleEvents.value;
 
-        // 1. Focus filter (voor detail view)
         if (activeFocusId.value && showOnlyFocus.value) {
             return list.filter(e => e.topicId === activeFocusId.value);
         }
 
-        // 2. Jaar filter
         if (startJaar.value > 0) {
             list = list.filter(e => e.dateObj.getFullYear() >= startJaar.value);
         }
         
-        // 3. Zoek filter (NIEUW)
         if (searchQuery.value && searchQuery.value.trim() !== '') {
             const q = searchQuery.value.toLowerCase().trim();
             list = list.filter(e => 
@@ -129,7 +127,6 @@ export function useDataStore() {
             );
         }
 
-        // 4. Hoofdfilters (Fase / Label)
         if (filterWaarde.value !== 'all') {
             if (filterType.value === 'fase') {
                 list = list.filter(e => e.type === filterWaarde.value);
@@ -138,9 +135,6 @@ export function useDataStore() {
             }
         }
 
-        // 5. Portefeuillehouder Filter (Verbeterd)
-        // Dit werkt nu onafhankelijk van in welke 'tab' je zit, 
-        // zolang er maar een PH geselecteerd is.
         if (filterPH.value && filterPH.value !== '') {
             list = list.filter(e => {
                 if (!e.ph) return false;
@@ -171,7 +165,6 @@ export function useDataStore() {
         return Object.values(groepen).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     });
 
-    // Extractors voor dropdowns
     const uniekePortefeuillehouders = computed(() => {
         const phSet = new Set();
         agendaPunten.value.forEach(item => {
@@ -240,16 +233,11 @@ export function useDataStore() {
         laneSettings.value[phaseName] = current === 'grid' ? 'dots' : 'grid';
     }
 
-    // Geef alles terug
     return {
-        // State
         agendaPunten, activeDates, historyStack, futureStack, laneSettings,
-        // Filters & Search
         filterType, filterWaarde, filterPH, startJaar, activeFocusId, showOnlyFocus, searchQuery,
-        // Computed
         alleEvents, gefilterdeEvents, gegroepeerdeLijst, 
         uniekePortefeuillehouders, uniekeDirecteuren, uniekeJaren,
-        // Methods
         loadData, saveDates, saveChanges, deleteItem, undo, redo, resetToDefaults, addToHistory, toggleLaneMode
     };
 }
